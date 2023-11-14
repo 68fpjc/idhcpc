@@ -1,1 +1,2 @@
 * working-tree-encoding=cp932
+*.md !working-tree-encoding
