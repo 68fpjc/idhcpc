@@ -14,9 +14,7 @@
 #include	<stdio.h>
 #include	<stdlib.h>
 #include	<string.h>
-#define	__DOS_INLINE__
 #include	<sys/dos.h>
-#define	__IOCS_INLINE__
 #include	<sys/iocs.h>
 #include	<network.h>
 #include	<socket.h>
