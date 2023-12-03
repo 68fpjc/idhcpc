@@ -6,10 +6,10 @@
 
 ; ================================================================
 ;
-;	int keepchk(struct _mep *pme, size_t offset, struct _mep **ppmep)
+;	int _keepchk(struct _mep *pme, size_t offset, struct _mep **ppmep)
 ;
 ; ================================================================
-_keepchk::
+__keepchk::
 		movea.l	(sp)+,a1
 		jbsr	keepchk
 		pea.l	(a1)

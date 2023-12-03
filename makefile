@@ -36,14 +36,14 @@ CFLAGS = $(COMMON_FLAGS) -Wno-builtin-declaration-mismatch -fcall-used-d2 -fcall
 CXXFLAGS = $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
 
 # *.c ソースファイル
-C_SRCS = main.c dhcp.c nwsub.c
+C_SRCS = main.c idhcpc.c dhcp.c nwsub.c
 
 # *.cpp ソースファイル
 CPP_SRCS =
 
 # *.s ソースファイル
-# idhcpc.s → tsrarea.s の順に
-ASM_SRCS = idhcpc.s tsrarea.s keepchk.s _keepchk.s
+# tsrarea.s を先頭に
+ASM_SRCS = tsrarea.s keepchk.s __keepchk.s
 
 # リンク対象のライブラリファイル
 LIBS =\

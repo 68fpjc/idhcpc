@@ -1,28 +1,13 @@
 #include <stdlib.h>
 #include <string.h>
-#include <sys/dos.h>
-#include <sys/iocs.h>
 
 #include "dhcp.h"
+#include "idhcpc.h"
 #include "mynetwork.h"
 #include "nwsub.h"
 
-/* 情報保存用ワーク（メインメモリ上に常駐） */
-/* tsrarea.sと内容を合わせること */
-typedef struct {
-  char magic[64];        /* 常駐チェック用文字列 */
-  unsigned long startat; /* IPアドレス設定時のマシン起動時間（秒） */
-  unsigned long leasetime;        /* リース期間（秒） */
-  unsigned long renewtime;        /* 更新開始タイマ（秒） */
-  unsigned long rebindtime;       /* 再結合開始タイマ（秒） */
-  unsigned long me;               /* 自分のIPアドレス */
-  unsigned long server;           /* DHCPサーバIPアドレス */
-  unsigned long gateway;          /* デフォルトゲートウェイ */
-  unsigned long dns[256 / 4 - 1]; /* DNSサーバアドレス */
-} tsrarea;
-
 extern tsrarea g_tsrarea;
-extern void g_keepst, g_magic, g_keeped;
+
 static unsigned long g_subnetmask;
 static char g_domainname[256];
 static char g_devname[] = "/dev/en0";
@@ -97,7 +82,6 @@ static void iface_when_release(char *);
 static void delaysec(int);
 static void put_error(int);
 static void put_progress(void);
-extern int keepchk(struct _mep *, size_t, struct _mep **);
 
 /**
  * @brief メイン処理
@@ -110,7 +94,7 @@ int main(int argc, char *argv[]) {
   int errno;
   int rflag = 0, lflag = 0;
   int keepflag;
-  struct _mep *pmep;
+  tsrarea *ptsrarea;
 
   printf(g_title);
 
@@ -138,13 +122,10 @@ int main(int argc, char *argv[]) {
   }
 
   /* ここで常駐チェックしておく */
-  keepflag =
-      keepchk((struct _mep *)((void *)_dos_getpdb() - sizeof(struct _mep)),
-              &g_magic - &g_keepst, &pmep);
+  keepflag = keepchk(&ptsrarea);
   if (keepflag) {
     /* 常駐部に保存してあった情報をグローバルワークへ転送しておく */
-    memcpy(&g_tsrarea, (void *)pmep + sizeof(struct _mep) + sizeof(struct _psp),
-           sizeof(g_tsrarea));
+    memcpy(&g_tsrarea, ptsrarea, sizeof(g_tsrarea));
   }
 
   if (rflag) {
@@ -153,7 +134,7 @@ int main(int argc, char *argv[]) {
       put_error(errno);
       return EXIT_FAILURE;
     } else {
-      _dos_mfree((void *)pmep + sizeof(struct _mep)); /* 常駐部解放 */
+      freepr(ptsrarea);
       printf(g_removemes);
     }
   } else if (lflag) {
@@ -170,7 +151,7 @@ int main(int argc, char *argv[]) {
     } else {
       printf(g_keepmes);
       print_lease_time(g_tsrarea.leasetime, g_tsrarea.startat);
-      _dos_keeppr(&g_keeped - &g_keepst, 0); /* 常駐終了 */
+      keeppr_and_exit(); /* 常駐終了 */
     }
   }
 
@@ -261,7 +242,7 @@ static void print_lease_time(unsigned long leasetime, unsigned long startat) {
   if (leasetime == 0xffffffff) {
     printf("リース期間は無期限です.\n");
   } else {
-    rest = (int)leasetime - (_iocs_ontime() / 100 - (int)startat);
+    rest = (int)leasetime - (ontime() / 100 - (int)startat);
     rest_s = rest % 60;
     rest /= 60;
     rest_m = rest % 60;
@@ -361,7 +342,7 @@ static int request_to_dhcp_server(tsrarea *ptsrarea, unsigned long *pmask,
   }
 
   /* この時点でのマシン起動時間を覚えておく */
-  g_tsrarea.startat = (unsigned long)(_iocs_ontime() / 100);
+  g_tsrarea.startat = (unsigned long)(ontime() / 100);
 
   /* REQUEST時のネットワークインタフェース設定 */
   iface_when_request(g_ifname);
@@ -401,7 +382,7 @@ static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
 
     /* メッセージ送信処理 */
     xid = random(); /* トランザクションID設定 */
-    secs = (unsigned short)(_iocs_ontime() / 100);
+    secs = (unsigned short)(ontime() / 100);
     switch (msgtype_s) {
       case DHCPDISCOVER:
         dhcp_make_dhcpdiscover(&smsg, &g_macaddr, xid, secs);
@@ -432,12 +413,12 @@ static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
 
     /* タイムアウトリミット設定 */
     /* 4, 8, 16, 32, 64 ± 1秒くらい */
-    endat = _iocs_ontime() + (wait - 1) * 100 + random() % 200;
+    endat = ontime() + (wait - 1) * 100 + random() % 200;
     timeout = 0;
     while (1) {
       int len = sizeof(inaddr_r);
 
-      if (_iocs_ontime() > endat) {
+      if (ontime() > endat) {
         timeout = 1;
         break;
       }
@@ -657,9 +638,9 @@ static void iface_when_release(char *ifname) {
  * @param tm ウェイトカウント（）
  */
 static void delaysec(int tm) {
-  int endat = _iocs_ontime() + tm;
+  int endat = ontime() + tm;
 
-  while (endat > _iocs_ontime())
+  while (endat > ontime())
     ;
 }
 
@@ -678,10 +659,10 @@ static void put_error(int errno) {
  */
 static void put_progress(void) {
   static int ontime0 = 0;
-  int ontime = _iocs_ontime();
-  if (ontime - ontime0 >= 50) {
+  int ontime1 = ontime();
+  if (ontime1 - ontime0 >= 50) {
     printf(".");
     fflush(stdout);
-    ontime0 = ontime;
+    ontime0 = ontime1;
   }
 }
