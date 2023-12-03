@@ -31,6 +31,17 @@ static eaddr g_macaddr;
 static int g_sock_s = -1, g_sock_r = -1;
 static int g_verbose = 0;
 
+static char g_title[] =
+    "idhcpc.x - インチキDHCPクライアント - version 0.11 "
+    "Copyright 2002,03 Igarashi\n";
+
+static char g_usgmes[] =
+    "Usage: idhcpc [options]\n"
+    "Options:\n"
+    "\t-r, --release\t\tコンフィギュレーション情報を破棄する\n"
+    "\t-l, --print-lease-time\t残りリース期間を表示する\n"
+    "\t-v, --verbose\t\t詳細表示モード\n";
+
 enum e_errno {
   NOERROR,
   ERR_NODEVICE,
@@ -46,31 +57,21 @@ enum e_errno {
   ERR_ALREADYKEPT,
 };
 
-static char g_title[] =
-    "idhcpc.x - インチキDHCPクライアント - version 0.11 "
-    "Copyright 2002,03 Igarashi\n";
-
-static char g_usgmes[] =
-    "Usage: idhcpc [options]\n"
-    "Options:\n"
-    "\t-r, --release\t\tコンフィギュレーション情報を破棄する\n"
-    "\t-l, --print-lease-time\t残りリース期間を表示する\n"
-    "\t-v, --verbose\t\t詳細表示モード\n";
-
 static char *g_errmes[] = {
-    "",
-    "ネットワークデバイスがインストールされていません.",
-    "ソケットを作成できません.",
-    "DHCPサーバポートへの接続に失敗しました.",
-    "DHCPクライアントポートへの接続に失敗しました.",
-    "タイムアウトです.",
-    "DHCPサーバから要求を拒否されました.",
-    "IPアドレスを取得できませんでした.",
-    "リース期間を取得できませんでした.",
-    "DHCPサーバのIPアドレスを取得できません.",
-    "idpcpcが起動していません.",
-    "idpcpcはすでに起動しています.",
+    /* NOERROR         */ "",
+    /* ERR_NODEVICE    */ "ネットワークデバイスがインストールされていません.",
+    /* ERR_SOCKET      */ "ソケットを作成できません.",
+    /* ERR_CONNECT     */ "DHCPサーバポートへの接続に失敗しました.",
+    /* ERR_BIND        */ "DHCPクライアントポートへの接続に失敗しました.",
+    /* ERR_TIMEOUT     */ "タイムアウトです.",
+    /* ERR_NAK         */ "DHCPサーバから要求を拒否されました.",
+    /* ERR_NOYIADDR    */ "IPアドレスを取得できませんでした.",
+    /* ERR_NOLEASETIME */ "リース期間を取得できませんでした.",
+    /* ERR_NOSID       */ "DHCPサーバのIPアドレスを取得できません.",
+    /* ERR_NOTKEPT     */ "idpcpcが起動していません.",
+    /* ERR_ALREADYKEPT */ "idpcpcはすでに起動しています.",
 };
+
 static char g_keepmes[] = "コンフィギュレーションが完了しました.\n";
 
 static char g_removemes[] = "コンフィギュレーション情報を破棄しました.\n";
