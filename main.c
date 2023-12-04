@@ -251,7 +251,7 @@ static void print_lease_time(const unsigned long leasetime,
     rest_h = rest / 60;
     printf("残りリース期間は");
     if (rest_h) printf(" %d 時間", rest_h);
-    if (rest_h) printf(" %d 分", rest_m);
+    if (rest_m) printf(" %d 分", rest_m);
     printf(" %d 秒 です.\n", rest_s);
   }
 }
