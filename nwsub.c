@@ -6,16 +6,16 @@
 
 /**
  * @brief 指定デバイスに対応するMACアドレスを取得する
- * @param dest MACアドレス格納用バッファ
  * @param devname デバイス名（e.g. "dev/en0"）
+ * @param[out] pmacaddr MACアドレス格納域
  * @return TRUE 成功 / FALSE 失敗
  */
-int get_mac_address(eaddr *dest, char *devname) {
+int get_mac_address(const char *devname, eaddr *pmacaddr) {
   int ret = FALSE;
   int no;
 
-  if (ETDGetDriverVersion(devname, &no) != -1) {
-    ETDGetMacAddr(dest, no);
+  if (ETDGetDriverVersion((char *)devname, &no) != -1) {
+    ETDGetMacAddr(pmacaddr, no);
     ret = TRUE;
   }
   return ret;
@@ -30,15 +30,15 @@ int create_udp_socket(void) { return socket(AF_INET, SOCK_DGRAM, 0); }
 
 /**
  * @brief ソケット接続要求
- * @param p sockaddr_in構造体へのポインタ
  * @param sockno ソケット識別子
  * @param portno ポート番号
  * @param ipaddr 接続先IPアドレス
+ * @param[out] p sockaddr_in格納域
  * @return connect()の戻り値。<0ならエラー
  */
-int connect2(struct sockaddr_in *p, int sockno, unsigned short portno,
-             int ipaddr) {
-  init_sockaddr_in(p, portno, ipaddr);
+int connect2(const int sockno, const unsigned short portno, const int ipaddr,
+             struct sockaddr_in *p) {
+  init_sockaddr_in(portno, ipaddr, p);
   return connect(sockno, (char *)p, sizeof(*p));
 }
 
@@ -49,21 +49,21 @@ int connect2(struct sockaddr_in *p, int sockno, unsigned short portno,
  * @param ipaddr 接続先IPアドレス
  * @return bind()の戻り値。<0ならエラー
  */
-int bind2(int sockno, unsigned short portno, int ipaddr) {
+int bind2(const int sockno, const unsigned short portno, const int ipaddr) {
   struct sockaddr_in inaddr;
 
-  init_sockaddr_in(&inaddr, portno, ipaddr);
+  init_sockaddr_in(portno, ipaddr, &inaddr);
   return bind(sockno, (char *)&inaddr, sizeof(inaddr));
 }
 
 /**
  * @brief sockaddr_in構造体の初期化
- * @param p
  * @param portno
  * @param ipaddr
+ * @param[out] p
  */
-void init_sockaddr_in(struct sockaddr_in *p, unsigned short portno,
-                      int ipaddr) {
+void init_sockaddr_in(const unsigned short portno, const int ipaddr,
+                      struct sockaddr_in *p) {
   memset(p, 0, sizeof(*p)); /* 0 で埋めておく */
   p->sin_family = AF_INET;
   p->sin_port = htons(portno);

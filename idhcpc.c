@@ -9,7 +9,7 @@ extern const char g_idhcpcinfo; /* idhcpc ワーク先頭アドレス */
 extern const char g_magic; /* 常駐判定チェック用文字列アドレス */
 extern const char g_keeped; /* 常駐部終端アドレス */
 
-extern int _keepchk(struct _mep *, size_t, struct _mep **);
+extern int _keepchk(const struct _mep *, const size_t, struct _mep **);
 
 /**
  * @brief 常駐判定

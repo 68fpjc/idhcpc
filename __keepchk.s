@@ -6,7 +6,7 @@
 
 ; ================================================================
 ;
-;	int _keepchk(struct _mep *pme, size_t offset, struct _mep **ppmep)
+;	int _keepchk(const struct _mep *pme, const size_t offset, struct _mep **ppmep)
 ;
 ; ================================================================
 __keepchk::

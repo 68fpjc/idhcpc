@@ -4,21 +4,22 @@
 
 #include "mynetwork.h"
 
-static unsigned char *dhcp_msg_common(dhcp_msg *, eaddr *, unsigned long,
-                                      unsigned short, unsigned char);
+static unsigned char *dhcp_msg_common(const eaddr *, const unsigned long,
+                                      const unsigned short, const unsigned char,
+                                      dhcp_msg *);
 
 /**
  * @brief DHCPDISCOVERメッセージ作成
- * @param pmsg メッセージバッファ
  * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
+ * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcpdiscover(dhcp_msg *pmsg, eaddr *pmacaddr, unsigned long xid,
-                            unsigned short secs) {
+void dhcp_make_dhcpdiscover(const eaddr *pmacaddr, const unsigned long xid,
+                            const unsigned short secs, dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmsg, pmacaddr, xid, secs, DHCPDISCOVER); /* 共通部 */
+  p = dhcp_msg_common(pmacaddr, xid, secs, DHCPDISCOVER, pmsg); /* 共通部 */
 
   pmsg->h.flags = htons(DHCP_BCAST); /* ブロードキャスト */
 
@@ -37,19 +38,19 @@ void dhcp_make_dhcpdiscover(dhcp_msg *pmsg, eaddr *pmacaddr, unsigned long xid,
 
 /**
  * @brief DHCPREQUESTメッセージ作成
- * @param pmsg メッセージバッファ
  * @param yiaddr 要求IPアドレス
  * @param sid サーバID（=DHCPサーバIPアドレス）
  * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
+ * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcprequest(dhcp_msg *pmsg, unsigned long yiaddr,
-                           unsigned long sid, eaddr *pmacaddr,
-                           unsigned long xid, unsigned short secs) {
+void dhcp_make_dhcprequest(const unsigned long yiaddr, const unsigned long sid,
+                           const eaddr *pmacaddr, const unsigned long xid,
+                           const unsigned short secs, dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmsg, pmacaddr, xid, secs, DHCPREQUEST); /* 共通部 */
+  p = dhcp_msg_common(pmacaddr, xid, secs, DHCPREQUEST, pmsg); /* 共通部 */
 
   pmsg->h.flags = htons(DHCP_BCAST); /* ブロードキャスト */
 
@@ -89,18 +90,18 @@ void dhcp_make_dhcprequest(dhcp_msg *pmsg, unsigned long yiaddr,
 
 /**
  * @brief DHCPRELEASEメッセージ作成
- * @param pmsg メッセージバッファ
  * @param myaddr クライアントIPアドレス
  * @param sid サーバID（=DHCPサーバIPアドレス）
  * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
+ * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcprelease(dhcp_msg *pmsg, unsigned long myaddr,
-                           unsigned long sid, eaddr *pmacaddr,
-                           unsigned long xid) {
+void dhcp_make_dhcprelease(const unsigned long myaddr, const unsigned long sid,
+                           const eaddr *pmacaddr, const unsigned long xid,
+                           dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmsg, pmacaddr, xid, 0, DHCPRELEASE); /* 共通部 */
+  p = dhcp_msg_common(pmacaddr, xid, 0, DHCPRELEASE, pmsg); /* 共通部 */
 
   /* クライアントIPアドレス */
   pmsg->h.ciaddr = htonl(myaddr);
@@ -120,16 +121,18 @@ void dhcp_make_dhcprelease(dhcp_msg *pmsg, unsigned long myaddr,
 
 /**
  * @brief DHCPメッセージ作成共通部
- * @param pmsg メッセージバッファ
  * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
  * @param msgtype メッセージタイプ
+ * @param[out] pmsg メッセージバッファ
  * @return
  */
-static unsigned char *dhcp_msg_common(dhcp_msg *pmsg, eaddr *pmacaddr,
-                                      unsigned long xid, unsigned short secs,
-                                      unsigned char msgtype) {
+static unsigned char *dhcp_msg_common(const eaddr *pmacaddr,
+                                      const unsigned long xid,
+                                      const unsigned short secs,
+                                      const unsigned char msgtype,
+                                      dhcp_msg *pmsg) {
   unsigned char *p = &pmsg->options[4];
 
   memset(pmsg, 0, sizeof(*pmsg)); /* 必ずゼロで埋めておくこと */
@@ -166,8 +169,9 @@ static unsigned char *dhcp_msg_common(dhcp_msg *pmsg, eaddr *pmacaddr,
  * @param item item type
  * @return アイテム先頭 + 1（オクテット数格納アドレス）。NULLならエラー
  */
-unsigned char *dhcp_searchfromopt(dhcp_msg *pmsg, unsigned char item) {
-  unsigned char *p = &pmsg->options[4];
+unsigned char *dhcp_searchfromopt(const dhcp_msg *pmsg,
+                                  const unsigned char item) {
+  const unsigned char *p = &pmsg->options[4];
   unsigned char itemtype;
 
   while (1) {
@@ -182,7 +186,7 @@ unsigned char *dhcp_searchfromopt(dhcp_msg *pmsg, unsigned char item) {
     p += 1 + *p;
   }
 
-  return p;
+  return (char *)p;
 }
 
 /**
@@ -190,7 +194,9 @@ unsigned char *dhcp_searchfromopt(dhcp_msg *pmsg, unsigned char item) {
  * @param pmsg メッセージバッファ
  * @return YOUR IP ADDR
  */
-unsigned long dhcp_get_yiaddr(dhcp_msg *pmsg) { return ntohl(pmsg->h.yiaddr); }
+unsigned long dhcp_get_yiaddr(const dhcp_msg *pmsg) {
+  return ntohl(pmsg->h.yiaddr);
+}
 
 /**
  * @brief DHCPメッセージのオプション領域からサブネットマスクを取得する
@@ -198,19 +204,19 @@ unsigned long dhcp_get_yiaddr(dhcp_msg *pmsg) { return ntohl(pmsg->h.yiaddr); }
  * @param pmask サブネットマスク格納域
  * @return NULLなら存在しない
  */
-unsigned char *dhcp_get_subnetmask(dhcp_msg *pmsg, unsigned long *pmask) {
-  return dhcp_get_4octet(pmsg, pmask, DHCP_SUBNETMASK);
+unsigned char *dhcp_get_subnetmask(const dhcp_msg *pmsg, unsigned long *pmask) {
+  return dhcp_get_4octet(pmsg, DHCP_SUBNETMASK, pmask);
 }
 
 /**
  * @brief
  * DHCPメッセージのオプション領域からサーバID（=DHCPサーバIPアドレス）を取得する
  * @param pmsg メッセージバッファ
- * @param pid サーバID格納域
+ * @param[out] pid サーバID格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_serverid(dhcp_msg *pmsg, unsigned long *pid) {
-  return dhcp_get_4octet(pmsg, pid, DHCP_SERVERID);
+unsigned char *dhcp_get_serverid(const dhcp_msg *pmsg, unsigned long *pid) {
+  return dhcp_get_4octet(pmsg, DHCP_SERVERID, pid);
 }
 
 /**
@@ -220,8 +226,8 @@ unsigned char *dhcp_get_serverid(dhcp_msg *pmsg, unsigned long *pid) {
  * @param proute デフォルトゲートウェイアドレス格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_defroute(dhcp_msg *pmsg, unsigned long *proute) {
-  return dhcp_get_4octet(pmsg, proute, DHCP_GATEWAY);
+unsigned char *dhcp_get_defroute(const dhcp_msg *pmsg, unsigned long *proute) {
+  return dhcp_get_4octet(pmsg, DHCP_GATEWAY, proute);
 }
 
 /**
@@ -230,8 +236,8 @@ unsigned char *dhcp_get_defroute(dhcp_msg *pmsg, unsigned long *proute) {
  * @param ptime リース期間格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_leasetime(dhcp_msg *pmsg, unsigned long *ptime) {
-  return dhcp_get_4octet(pmsg, ptime, DHCP_LEASETIME);
+unsigned char *dhcp_get_leasetime(const dhcp_msg *pmsg, unsigned long *ptime) {
+  return dhcp_get_4octet(pmsg, DHCP_LEASETIME, ptime);
 }
 
 /**
@@ -240,8 +246,8 @@ unsigned char *dhcp_get_leasetime(dhcp_msg *pmsg, unsigned long *ptime) {
  * @param ptime 更新期間格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_renewtime(dhcp_msg *pmsg, unsigned long *ptime) {
-  return dhcp_get_4octet(pmsg, ptime, DHCP_RENEWTIME);
+unsigned char *dhcp_get_renewtime(const dhcp_msg *pmsg, unsigned long *ptime) {
+  return dhcp_get_4octet(pmsg, DHCP_RENEWTIME, ptime);
 }
 
 /**
@@ -250,8 +256,8 @@ unsigned char *dhcp_get_renewtime(dhcp_msg *pmsg, unsigned long *ptime) {
  * @param ptime 再結合期間格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_rebindtime(dhcp_msg *pmsg, unsigned long *ptime) {
-  return dhcp_get_4octet(pmsg, ptime, DHCP_REBINDTIME);
+unsigned char *dhcp_get_rebindtime(const dhcp_msg *pmsg, unsigned long *ptime) {
+  return dhcp_get_4octet(pmsg, DHCP_REBINDTIME, ptime);
 }
 
 /**
@@ -260,7 +266,7 @@ unsigned char *dhcp_get_rebindtime(dhcp_msg *pmsg, unsigned long *ptime) {
  * @param pdomainsvr ドメインサーバ配列格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_dns(dhcp_msg *pmsg, unsigned long *pdomainsvr) {
+unsigned char *dhcp_get_dns(const dhcp_msg *pmsg, unsigned long *pdomainsvr) {
   unsigned char *p;
 
   if ((p = dhcp_searchfromopt(pmsg, DHCP_DOMAINSVR)) != NULL) {
@@ -280,7 +286,7 @@ unsigned char *dhcp_get_dns(dhcp_msg *pmsg, unsigned long *pdomainsvr) {
  * @param pbuf ドメイン名格納域
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_domainname(dhcp_msg *pmsg, char *pbuf) {
+unsigned char *dhcp_get_domainname(const dhcp_msg *pmsg, char *pbuf) {
   unsigned char *p;
 
   strcpy(pbuf, ""); /* EOS */
@@ -297,16 +303,16 @@ unsigned char *dhcp_get_domainname(dhcp_msg *pmsg, char *pbuf) {
  * @brief DHCPメッセージのオプション部から指定のアイテムを探し、アイテム先頭 +
  * 2バイト目からの4バイトデータを返す
  * @param pmsg メッセージバッファ
- * @param pipaddr
  * @param item
+ * @param[out] pout
  * @return NULLなら見つからなかった
  */
-unsigned char *dhcp_get_4octet(dhcp_msg *pmsg, unsigned long *pipaddr,
-                               unsigned char item) {
+unsigned char *dhcp_get_4octet(const dhcp_msg *pmsg, const unsigned char item,
+                               unsigned long *pout) {
   unsigned char *p;
 
   if ((p = dhcp_searchfromopt(pmsg, item)) != NULL) {
-    *pipaddr = ntohl(IPADDR(p[1], p[2], p[3], p[4]));
+    *pout = ntohl(IPADDR(p[1], p[2], p[3], p[4]));
   }
   return p;
 }
@@ -315,10 +321,11 @@ unsigned char *dhcp_get_4octet(dhcp_msg *pmsg, unsigned long *pipaddr,
  * @brief
  * @param pmsg
  * @param xid
- * @param pmsgtype
+ * @param[out] pmsgtype
  * @return
  */
-int dhcp_isreply(dhcp_msg *pmsg, unsigned long xid, unsigned char *pmsgtype) {
+int dhcp_isreply(const dhcp_msg *pmsg, const unsigned long xid,
+                 unsigned char *pmsgtype) {
   if ((pmsg->h.op != DHCP_BOOTREPLY) || (pmsg->h.xid != xid) ||
       (ntohl(*((unsigned long *)pmsg->options)) != htonl(DHCP_MAGICCOOKIE)) ||
       (pmsg->options[4] != DHCP_MSGTYPE)) {
@@ -333,8 +340,8 @@ int dhcp_isreply(dhcp_msg *pmsg, unsigned long xid, unsigned char *pmsgtype) {
  * @brief デバッグ用
  * @param pmsg
  */
-void dhcp_print(dhcp_msg *pmsg) {
-  unsigned char *p;
+void dhcp_print(const dhcp_msg *pmsg) {
+  const unsigned char *p;
   unsigned char itemtype;
   int msglen;
   unsigned char buf[255 + 1];

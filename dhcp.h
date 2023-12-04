@@ -74,24 +74,27 @@ typedef struct tagdhcp_msg {
 #define DHCPINFORM 8
 
 /* prototype */
-void dhcp_make_dhcpdiscover(dhcp_msg *, eaddr *, unsigned long, unsigned short);
-void dhcp_make_dhcprequest(dhcp_msg *, unsigned long, unsigned long, eaddr *,
-                           unsigned long, unsigned short);
-void dhcp_make_dhcprelease(dhcp_msg *, unsigned long, unsigned long, eaddr *,
-                           unsigned long);
-unsigned char *dhcp_searchfromopt(dhcp_msg *, unsigned char);
-unsigned char *dhcp_get_4octet(dhcp_msg *, unsigned long *, unsigned char);
-unsigned long dhcp_get_yiaddr(dhcp_msg *);
-unsigned char *dhcp_get_serverid(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_subnetmask(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_defroute(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_leasetime(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_renewtime(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_rebindtime(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_dns(dhcp_msg *, unsigned long *);
-unsigned char *dhcp_get_domainname(dhcp_msg *, char *);
-int dhcp_isreply(dhcp_msg *, unsigned long, unsigned char *);
+void dhcp_make_dhcpdiscover(const eaddr *, const unsigned long,
+                            const unsigned short, dhcp_msg *);
+void dhcp_make_dhcprequest(const unsigned long, const unsigned long,
+                           const eaddr *, const unsigned long,
+                           const unsigned short, dhcp_msg *);
+void dhcp_make_dhcprelease(const unsigned long, const unsigned long,
+                           const eaddr *, const unsigned long, dhcp_msg *);
+unsigned char *dhcp_searchfromopt(const dhcp_msg *, const unsigned char);
+unsigned char *dhcp_get_4octet(const dhcp_msg *, const unsigned char,
+                               unsigned long *);
+unsigned long dhcp_get_yiaddr(const dhcp_msg *);
+unsigned char *dhcp_get_serverid(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_subnetmask(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_defroute(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_leasetime(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_renewtime(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_rebindtime(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_dns(const dhcp_msg *, unsigned long *);
+unsigned char *dhcp_get_domainname(const dhcp_msg *, char *);
+int dhcp_isreply(const dhcp_msg *, const unsigned long, unsigned char *);
 
-void dhcp_print(dhcp_msg *);
+void dhcp_print(const dhcp_msg *);
 
 #endif /* __DHCP_H__ */

@@ -61,26 +61,26 @@ static char g_keepmes[] = "コンフィギュレーションが完了しまし�
 
 static char g_removemes[] = "コンフィギュレーション情報を破棄しました.\n";
 
-static int try_to_keep(int);
-static int try_to_release(int);
-static int try_to_print(int);
-static void print_lease_time(unsigned long, unsigned long);
+static int try_to_keep(const int);
+static int try_to_release(const int);
+static int try_to_print(const int);
+static void print_lease_time(const unsigned long, const unsigned long);
 static int prepare_discover(struct sockaddr_in *);
 static int discover_dhcp_server(unsigned long *, unsigned long *,
                                 struct sockaddr_in *);
-static int request_to_dhcp_server(idhcpcinfo *, unsigned long *, char *,
-                                  unsigned long, unsigned long,
+static int request_to_dhcp_server(const unsigned long, const unsigned long,
+                                  idhcpcinfo *, unsigned long *, char *,
                                   struct sockaddr_in *);
-static int send_and_receive(dhcp_msg *, struct sockaddr_in *, unsigned long,
-                            unsigned long, int);
+static int send_and_receive(const unsigned long, const unsigned long, const int,
+                            dhcp_msg *, struct sockaddr_in *);
 static int fill_idhcpcinfo(idhcpcinfo *, unsigned long *, char *, dhcp_msg *);
 static void close_sockets(void);
 static int release_config(void);
-static void iface_when_discover(char *);
-static void iface_when_request(char *);
-static void iface_when_release(char *);
-static void delaysec(int);
-static void put_error(int);
+static void iface_when_discover(const char *);
+static void iface_when_request(const char *);
+static void iface_when_release(const char *);
+static void delaysec(const int);
+static void put_error(const int);
 static void put_progress(void);
 
 /**
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
  * @param keepflag 常駐判定フラグ
  * @return エラーコード
  */
-static int try_to_keep(int keepflag) {
+static int try_to_keep(const int keepflag) {
   int errno;
   struct sockaddr_in inaddr_s;
   unsigned long me;
@@ -177,9 +177,9 @@ static int try_to_keep(int keepflag) {
     if ((errno = prepare_discover(&inaddr_s)) != NOERROR) break;
     if ((errno = discover_dhcp_server(&me, &server, &inaddr_s)) != NOERROR)
       break;
-    if ((errno = request_to_dhcp_server(&g_idhcpcinfo, &g_subnetmask,
-                                        g_domainname, me, server, &inaddr_s)) !=
-        NOERROR)
+    if ((errno =
+             request_to_dhcp_server(me, server, &g_idhcpcinfo, &g_subnetmask,
+                                    g_domainname, &inaddr_s)) != NOERROR)
       break;
     break;
   }
@@ -194,7 +194,7 @@ static int try_to_keep(int keepflag) {
  * @param keepflag 常駐判定フラグ
  * @return エラーコード
  */
-static int try_to_release(int keepflag) {
+static int try_to_release(const int keepflag) {
   int errno;
 
   while (1) {
@@ -216,7 +216,7 @@ static int try_to_release(int keepflag) {
  * @param keepflag 常駐判定フラグ
  * @return エラーコード
  */
-static int try_to_print(int keepflag) {
+static int try_to_print(const int keepflag) {
   int errno;
 
   while (1) {
@@ -237,7 +237,8 @@ static int try_to_print(int keepflag) {
  * @param leasetime （全体）リース期間（秒）
  * @param startat IPアドレス設定時のマシン起動時間（秒）
  */
-static void print_lease_time(unsigned long leasetime, unsigned long startat) {
+static void print_lease_time(const unsigned long leasetime,
+                             const unsigned long startat) {
   int rest, rest_h, rest_m, rest_s;
 
   if (leasetime == 0xffffffff) {
@@ -257,12 +258,12 @@ static void print_lease_time(unsigned long leasetime, unsigned long startat) {
 
 /**
  * @brief DHCPDISCOVER発行前の前処理
- * @param pinaddr_s 送信用ソケット情報格納域へのポインタ
+ * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
 static int prepare_discover(struct sockaddr_in *pinaddr_s) {
   /* MACアドレス取得 */
-  if (!get_mac_address(&g_macaddr, g_devname)) {
+  if (!get_mac_address(g_devname, &g_macaddr)) {
     return ERR_NODEVICE;
   }
   /* INIT時のネットワークインタフェース設定 */
@@ -277,7 +278,7 @@ static int prepare_discover(struct sockaddr_in *pinaddr_s) {
     return ERR_SOCKET;
   }
   /* DHCPサーバポート（67）に接続 */
-  if (connect2(pinaddr_s, g_sock_s, DHCP_SERVER_PORT, DHCP_LIMITEDBCAST) < 0) {
+  if (connect2(g_sock_s, DHCP_SERVER_PORT, DHCP_LIMITEDBCAST, pinaddr_s) < 0) {
     return ERR_CONNECT;
   }
   /* DHCPクライアントポート（68）に接続 */
@@ -290,9 +291,9 @@ static int prepare_discover(struct sockaddr_in *pinaddr_s) {
 
 /**
  * @brief DHCPDISCOVERを発行してDHCPOFFERを受信する
- * @param pme 要求IPアドレス格納域へのポインタ
- * @param pserver DHCPサーバIPアドレス格納域へのポインタ
- * @param pinaddr_s 送信用ソケット情報格納域へのポインタ
+ * @param[out] pme 要求IPアドレス格納域
+ * @param[out] pserver DHCPサーバIPアドレス格納域
+ * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
 static int discover_dhcp_server(unsigned long *pme, unsigned long *pserver,
@@ -300,7 +301,7 @@ static int discover_dhcp_server(unsigned long *pme, unsigned long *pserver,
   int ret;
   dhcp_msg msg;
 
-  if ((ret = send_and_receive(&msg, pinaddr_s, 0, 0, DHCPDISCOVER)) !=
+  if ((ret = send_and_receive(0, 0, DHCPDISCOVER, &msg, pinaddr_s)) !=
       NOERROR) {
     return ret;
   }
@@ -317,22 +318,23 @@ static int discover_dhcp_server(unsigned long *pme, unsigned long *pserver,
 
 /**
  * @brief DHCPREQUESTを発行してDHCPACKを受信する
- * @param pidhcpcinfo コンフィギュレーション情報格納域へのポインタ
- * @param pmask サブネットマスク格納域へのポインタ
- * @param pdomain ドメイン名格納域へのポインタ
  * @param me 要求IPアドレス
  * @param server DHCPサーバIPアドレス
- * @param pinaddr_s 送信用ソケット情報格納域へのポインタ
+ * @param[out] pidhcpcinfo コンフィギュレーション情報格納域
+ * @param[out] pmask サブネットマスク格納域
+ * @param[out] pdomain ドメイン名格納域
+ * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
-static int request_to_dhcp_server(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
-                                  char *pdomain, unsigned long me,
-                                  unsigned long server,
+static int request_to_dhcp_server(const unsigned long me,
+                                  const unsigned long server,
+                                  idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
+                                  char *pdomain,
                                   struct sockaddr_in *pinaddr_s) {
   int ret;
   dhcp_msg msg;
 
-  if ((ret = send_and_receive(&msg, pinaddr_s, me, server, DHCPREQUEST)) !=
+  if ((ret = send_and_receive(me, server, DHCPREQUEST, &msg, pinaddr_s)) !=
       NOERROR) {
     return ret;
   }
@@ -353,16 +355,16 @@ static int request_to_dhcp_server(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
 
 /**
  * @brief DHCPメッセージ送信 / 受信処理
- * @param prmsg DHCPメッセージバッファ格納域へのポインタ
- * @param pinaddr_s 送信用ソケット情報格納域へのポインタ
  * @param me 要求IPアドレス
  * @param server DHCPサーバIPアドレス
  * @param msgtype_s DHCPメッセージタイプ（DHCPDISCOVER or DHCPREQUEST）
+ * @param[out] prmsg DHCPメッセージバッファ格納域
+ * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
-static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
-                            unsigned long me, unsigned long server,
-                            int msgtype_s) {
+static int send_and_receive(const unsigned long me, const unsigned long server,
+                            const int msgtype_s, dhcp_msg *prmsg,
+                            struct sockaddr_in *pinaddr_s) {
   dhcp_msg smsg; /* DHCPメッセージバッファ（送信用） */
   struct sockaddr_in inaddr_r;
   unsigned char msgtype_r; /* 受信データのメッセージタイプ */
@@ -386,10 +388,10 @@ static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
     secs = (unsigned short)(ontime() / 100);
     switch (msgtype_s) {
       case DHCPDISCOVER:
-        dhcp_make_dhcpdiscover(&smsg, &g_macaddr, xid, secs);
+        dhcp_make_dhcpdiscover(&g_macaddr, xid, secs, &smsg);
         break;
       case DHCPREQUEST:
-        dhcp_make_dhcprequest(&smsg, me, server, &g_macaddr, xid, secs);
+        dhcp_make_dhcprequest(me, server, &g_macaddr, xid, secs, &smsg);
         break;
       default:
         break;
@@ -459,10 +461,10 @@ static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
 
 /**
  * @brief コンフィギュレーション情報をセーブする
- * @param pidhcpcinfo コンフィギュレーション情報格納域へのポインタ
- * @param pmask サブネットマスク格納域へのポインタ
- * @param pdomain ドメイン名格納域へのポインタ
- * @param pmsg DHCPOFFERまたはDHCPACKで受信したDHCPメッセージ
+ * @param[out] pidhcpcinfo コンフィギュレーション情報格納域
+ * @param[out] pmask サブネットマスク格納域
+ * @param[out] pdomain ドメイン名格納域
+ * @param[out] pmsg DHCPOFFERまたはDHCPACKで受信したDHCPメッセージ
  * @return エラーコード
  */
 static int fill_idhcpcinfo(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
@@ -523,7 +525,7 @@ static int release_config(void) {
   struct sockaddr_in inaddr_s;
 
   /* MACアドレス取得 */
-  if (!get_mac_address(&g_macaddr, g_devname)) {
+  if (!get_mac_address(g_devname, &g_macaddr)) {
     return ERR_NODEVICE;
   }
 
@@ -532,14 +534,14 @@ static int release_config(void) {
     return ERR_SOCKET;
   }
   /* DHCPサーバポート（67）に接続 */
-  if (connect2(&inaddr_s, g_sock_s, DHCP_SERVER_PORT, g_idhcpcinfo.server) <
+  if (connect2(g_sock_s, DHCP_SERVER_PORT, g_idhcpcinfo.server, &inaddr_s) <
       0) {
     return ERR_CONNECT;
   }
 
   /* DHCPRELEASEメッセージ送信処理 */
-  dhcp_make_dhcprelease(&msg, g_idhcpcinfo.me, g_idhcpcinfo.server, &g_macaddr,
-                        random());
+  dhcp_make_dhcprelease(g_idhcpcinfo.me, g_idhcpcinfo.server, &g_macaddr,
+                        random(), &msg);
   if (g_verbose) {
     dhcp_print(&msg);
     printf("DHCPサーバポート（67）へ送信中 ...\n");
@@ -558,13 +560,13 @@ static int release_config(void) {
  * @brief DHCPDISCOVER時のネットワークインタフェース設定
  * @param ifname インタフェース名（"en0"）
  */
-static void iface_when_discover(char *ifname) {
+static void iface_when_discover(const char *ifname) {
   iface *p, *p0;
 
-  if ((p0 = iface_lookupn(ifname)) != NULL) {
+  if ((p0 = iface_lookupn((char *)ifname)) != NULL) {
     p = p0;
   } else {
-    p = get_new_iface(ifname);
+    p = get_new_iface((char *)ifname);
   }
   p->my_ip_addr = 0;
   p->broad_cast = DHCP_LIMITEDBCAST;
@@ -579,8 +581,8 @@ static void iface_when_discover(char *ifname) {
  * @brief DHCPREQUEST時のネットワークインタフェース設定
  * @param ifname インタフェース名（"en0"）
  */
-static void iface_when_request(char *ifname) {
-  iface *p = iface_lookupn(ifname);
+static void iface_when_request(const char *ifname) {
+  iface *p = iface_lookupn((char *)ifname);
 
   p->my_ip_addr = g_idhcpcinfo.me;
   p->net_mask = g_subnetmask;
@@ -609,8 +611,8 @@ static void iface_when_request(char *ifname) {
  * @brief DHCPRELEASE発行後のネットワークインタフェースの辻褄合わせ
  * @param ifname インタフェース名（"en0"）
  */
-static void iface_when_release(char *ifname) {
-  iface *p = iface_lookupn(ifname);
+static void iface_when_release(const char *ifname) {
+  iface *p = iface_lookupn((char *)ifname);
 
   if (p->flag & IFACE_UP) {
     p->stop(p); /* これを実行しないと割り込みが消えないらしい */
@@ -640,7 +642,7 @@ static void iface_when_release(char *ifname) {
  * @brief 1/100秒単位でウェイトをかます
  * @param tm ウェイトカウント（）
  */
-static void delaysec(int tm) {
+static void delaysec(const int tm) {
   int endat = ontime() + tm;
 
   while (endat > ontime())
@@ -651,7 +653,7 @@ static void delaysec(int tm) {
  * @brief エラーメッセージ表示
  * @param errno エラーコード
  */
-static void put_error(int errno) {
+static void put_error(const int errno) {
   printf("エラーが発生しました. %s\n", g_errmes[errno]);
   fflush(stdout);
 }
