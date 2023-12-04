@@ -5,7 +5,7 @@
 MAGIC	.reg	'idhcpc.x version 0.11 Copyright 2002,03 Igarashi'
 
 _g_keepst::
-_g_tsrarea::
+_g_idhcpcinfo::
 _g_magic::
 	.dc.b	MAGIC,0			; 常駐チェック用文字列
 	.ds.b	64-(.sizeof.(MAGIC)+1)	; パディング
@@ -17,5 +17,5 @@ _g_magic::
 	.ds.l	1			; DHCPサーバIPアドレス
 	.ds.l	1			; デフォルトゲートウェイ
 	.ds.l	256/4-1			; DNSサーバアドレス
-_g_keeped::
 
+_g_keeped::

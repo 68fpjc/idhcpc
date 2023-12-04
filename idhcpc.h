@@ -1,7 +1,7 @@
 #ifndef __IDHCPC_H__
 #define __IDHCPC_H__
 
-/* 情報保存用ワーク（メインメモリ上に常駐） */
+/* idhcpc ワーク */
 /* tsrarea.sと内容を合わせること */
 typedef struct {
   char magic[64];        /* 常駐チェック用文字列 */
@@ -13,11 +13,11 @@ typedef struct {
   unsigned long server;           /* DHCPサーバIPアドレス */
   unsigned long gateway;          /* デフォルトゲートウェイ */
   unsigned long dns[256 / 4 - 1]; /* DNSサーバアドレス */
-} tsrarea;
+} idhcpcinfo;
 
-int keepchk(tsrarea **);
+int keepchk(idhcpcinfo **);
 void keeppr_and_exit(void);
-int freepr(const tsrarea *);
+int freepr(const idhcpcinfo *);
 
 int ontime(void);
 

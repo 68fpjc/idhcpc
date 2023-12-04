@@ -6,7 +6,7 @@
 #include "mynetwork.h"
 #include "nwsub.h"
 
-extern tsrarea g_tsrarea;
+extern idhcpcinfo g_idhcpcinfo;
 
 static unsigned long g_subnetmask;
 static char g_domainname[256];
@@ -68,12 +68,12 @@ static void print_lease_time(unsigned long, unsigned long);
 static int prepare_discover(struct sockaddr_in *);
 static int discover_dhcp_server(unsigned long *, unsigned long *,
                                 struct sockaddr_in *);
-static int request_to_dhcp_server(tsrarea *, unsigned long *, char *,
+static int request_to_dhcp_server(idhcpcinfo *, unsigned long *, char *,
                                   unsigned long, unsigned long,
                                   struct sockaddr_in *);
 static int send_and_receive(dhcp_msg *, struct sockaddr_in *, unsigned long,
                             unsigned long, int);
-static int fill_tsrarea(tsrarea *, unsigned long *, char *, dhcp_msg *);
+static int fill_idhcpcinfo(idhcpcinfo *, unsigned long *, char *, dhcp_msg *);
 static void close_sockets(void);
 static int release_config(void);
 static void iface_when_discover(char *);
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
   int errno;
   int rflag = 0, lflag = 0;
   int keepflag;
-  tsrarea *ptsrarea;
+  idhcpcinfo *pidhcpcinfo;
 
   printf(g_title);
 
@@ -122,10 +122,10 @@ int main(int argc, char *argv[]) {
   }
 
   /* ここで常駐チェックしておく */
-  keepflag = keepchk(&ptsrarea);
+  keepflag = keepchk(&pidhcpcinfo);
   if (keepflag) {
     /* 常駐部に保存してあった情報をグローバルワークへ転送しておく */
-    memcpy(&g_tsrarea, ptsrarea, sizeof(g_tsrarea));
+    memcpy(&g_idhcpcinfo, pidhcpcinfo, sizeof(g_idhcpcinfo));
   }
 
   if (rflag) {
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
       put_error(errno);
       return EXIT_FAILURE;
     } else {
-      freepr(ptsrarea);
+      freepr(pidhcpcinfo);
       printf(g_removemes);
     }
   } else if (lflag) {
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     } else {
       printf(g_keepmes);
-      print_lease_time(g_tsrarea.leasetime, g_tsrarea.startat);
+      print_lease_time(g_idhcpcinfo.leasetime, g_idhcpcinfo.startat);
       keeppr_and_exit(); /* 常駐終了 */
     }
   }
@@ -177,8 +177,9 @@ static int try_to_keep(int keepflag) {
     if ((errno = prepare_discover(&inaddr_s)) != NOERROR) break;
     if ((errno = discover_dhcp_server(&me, &server, &inaddr_s)) != NOERROR)
       break;
-    if ((errno = request_to_dhcp_server(&g_tsrarea, &g_subnetmask, g_domainname,
-                                        me, server, &inaddr_s)) != NOERROR)
+    if ((errno = request_to_dhcp_server(&g_idhcpcinfo, &g_subnetmask,
+                                        g_domainname, me, server, &inaddr_s)) !=
+        NOERROR)
       break;
     break;
   }
@@ -223,7 +224,7 @@ static int try_to_print(int keepflag) {
       errno = ERR_NOTKEPT;
       break;
     }
-    print_lease_time(g_tsrarea.leasetime, g_tsrarea.startat);
+    print_lease_time(g_idhcpcinfo.leasetime, g_idhcpcinfo.startat);
     errno = NOERROR;
     break;
   }
@@ -316,7 +317,7 @@ static int discover_dhcp_server(unsigned long *pme, unsigned long *pserver,
 
 /**
  * @brief DHCPREQUESTを発行してDHCPACKを受信する
- * @param ptsrarea コンフィギュレーション情報格納域へのポインタ
+ * @param pidhcpcinfo コンフィギュレーション情報格納域へのポインタ
  * @param pmask サブネットマスク格納域へのポインタ
  * @param pdomain ドメイン名格納域へのポインタ
  * @param me 要求IPアドレス
@@ -324,7 +325,7 @@ static int discover_dhcp_server(unsigned long *pme, unsigned long *pserver,
  * @param pinaddr_s 送信用ソケット情報格納域へのポインタ
  * @return エラーコード
  */
-static int request_to_dhcp_server(tsrarea *ptsrarea, unsigned long *pmask,
+static int request_to_dhcp_server(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
                                   char *pdomain, unsigned long me,
                                   unsigned long server,
                                   struct sockaddr_in *pinaddr_s) {
@@ -337,12 +338,12 @@ static int request_to_dhcp_server(tsrarea *ptsrarea, unsigned long *pmask,
   }
 
   /* 受信結果から要求IPアドレス / サーバIDその他を抜き出す */
-  if ((ret = fill_tsrarea(ptsrarea, pmask, pdomain, &msg)) != NOERROR) {
+  if ((ret = fill_idhcpcinfo(pidhcpcinfo, pmask, pdomain, &msg)) != NOERROR) {
     return ret;
   }
 
   /* この時点でのマシン起動時間を覚えておく */
-  g_tsrarea.startat = (unsigned long)(ontime() / 100);
+  g_idhcpcinfo.startat = (unsigned long)(ontime() / 100);
 
   /* REQUEST時のネットワークインタフェース設定 */
   iface_when_request(g_ifname);
@@ -458,36 +459,37 @@ static int send_and_receive(dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s,
 
 /**
  * @brief コンフィギュレーション情報をセーブする
- * @param ptsrarea コンフィギュレーション情報格納域へのポインタ
+ * @param pidhcpcinfo コンフィギュレーション情報格納域へのポインタ
  * @param pmask サブネットマスク格納域へのポインタ
  * @param pdomain ドメイン名格納域へのポインタ
  * @param pmsg DHCPOFFERまたはDHCPACKで受信したDHCPメッセージ
  * @return エラーコード
  */
-static int fill_tsrarea(tsrarea *ptsrarea, unsigned long *pmask, char *pdomain,
-                        dhcp_msg *pmsg) {
-  if ((ptsrarea->me = dhcp_get_yiaddr(pmsg)) == 0) { /* 要求IPアドレス */
+static int fill_idhcpcinfo(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
+                           char *pdomain, dhcp_msg *pmsg) {
+  if ((pidhcpcinfo->me = dhcp_get_yiaddr(pmsg)) == 0) { /* 要求IPアドレス */
     return ERR_NOYIADDR;
   }
-  if (dhcp_get_serverid(pmsg, &ptsrarea->server) == NULL) { /* サーバID */
+  if (dhcp_get_serverid(pmsg, &pidhcpcinfo->server) == NULL) { /* サーバID */
     return ERR_NOSID;
   }
-  ptsrarea->gateway = 0; /* デフォルトゲートウェイ */
-  dhcp_get_defroute(pmsg, &ptsrarea->gateway);
-  dhcp_get_dns(pmsg, ptsrarea->dns); /* ドメインサーバ（配列） */
-  if (dhcp_get_leasetime(pmsg, &ptsrarea->leasetime) == NULL) { /* リース期間 */
+  pidhcpcinfo->gateway = 0; /* デフォルトゲートウェイ */
+  dhcp_get_defroute(pmsg, &pidhcpcinfo->gateway);
+  dhcp_get_dns(pmsg, pidhcpcinfo->dns); /* ドメインサーバ（配列） */
+  if (dhcp_get_leasetime(pmsg, &pidhcpcinfo->leasetime) ==
+      NULL) { /* リース期間 */
     /* リース期間が渡されなかった！？ */
     return ERR_NOLEASETIME;
   }
-  ptsrarea->renewtime = 0; /* 更新時間 */
-  dhcp_get_renewtime(pmsg, &ptsrarea->renewtime);
-  if (ptsrarea->renewtime == 0) {
-    ptsrarea->renewtime = ptsrarea->leasetime / 2;
+  pidhcpcinfo->renewtime = 0; /* 更新時間 */
+  dhcp_get_renewtime(pmsg, &pidhcpcinfo->renewtime);
+  if (pidhcpcinfo->renewtime == 0) {
+    pidhcpcinfo->renewtime = pidhcpcinfo->leasetime / 2;
   }
-  ptsrarea->rebindtime = 0; /* 再結合時間 */
-  dhcp_get_rebindtime(pmsg, &ptsrarea->rebindtime);
-  if (ptsrarea->rebindtime == 0) {
-    ptsrarea->rebindtime = ptsrarea->leasetime * 857 / 1000;
+  pidhcpcinfo->rebindtime = 0; /* 再結合時間 */
+  dhcp_get_rebindtime(pmsg, &pidhcpcinfo->rebindtime);
+  if (pidhcpcinfo->rebindtime == 0) {
+    pidhcpcinfo->rebindtime = pidhcpcinfo->leasetime * 857 / 1000;
   }
   *pmask = 0; /* サブネットマスク */
   dhcp_get_subnetmask(pmsg, pmask);
@@ -530,12 +532,13 @@ static int release_config(void) {
     return ERR_SOCKET;
   }
   /* DHCPサーバポート（67）に接続 */
-  if (connect2(&inaddr_s, g_sock_s, DHCP_SERVER_PORT, g_tsrarea.server) < 0) {
+  if (connect2(&inaddr_s, g_sock_s, DHCP_SERVER_PORT, g_idhcpcinfo.server) <
+      0) {
     return ERR_CONNECT;
   }
 
   /* DHCPRELEASEメッセージ送信処理 */
-  dhcp_make_dhcprelease(&msg, g_tsrarea.me, g_tsrarea.server, &g_macaddr,
+  dhcp_make_dhcprelease(&msg, g_idhcpcinfo.me, g_idhcpcinfo.server, &g_macaddr,
                         random());
   if (g_verbose) {
     dhcp_print(&msg);
@@ -579,13 +582,13 @@ static void iface_when_discover(char *ifname) {
 static void iface_when_request(char *ifname) {
   iface *p = iface_lookupn(ifname);
 
-  p->my_ip_addr = g_tsrarea.me;
+  p->my_ip_addr = g_idhcpcinfo.me;
   p->net_mask = g_subnetmask;
   p->broad_cast = (p->my_ip_addr & g_subnetmask) | ~g_subnetmask;
   p->flag |= IFACE_UP;
 
   {
-    unsigned long *p = g_tsrarea.dns, addr;
+    unsigned long *p = g_idhcpcinfo.dns, addr;
 
     while ((addr = *p++)) {
       dns_add((long)addr);
@@ -594,10 +597,10 @@ static void iface_when_request(char *ifname) {
   if (strcmp(g_domainname, "")) {
     set_domain_name(g_domainname);
   }
-  if (g_tsrarea.gateway) {
+  if (g_idhcpcinfo.gateway) {
     route *def;
     rt_top(&def);
-    def->gateway = (long)g_tsrarea.gateway;
+    def->gateway = (long)g_idhcpcinfo.gateway;
   }
 /* delaysec(150);
 */}
@@ -619,14 +622,14 @@ static void iface_when_release(char *ifname) {
   p->flag &= ~(IFACE_UP | IFACE_BROAD);
 
   {
-    unsigned long *p = g_tsrarea.dns, addr;
+    unsigned long *p = g_idhcpcinfo.dns, addr;
 
     while ((addr = *p++)) {
       dns_drop((long)addr);
     }
   }
   set_domain_name("");
-  if (g_tsrarea.gateway) {
+  if (g_idhcpcinfo.gateway) {
     route *def;
     rt_top(&def);
     def->gateway = 0;
