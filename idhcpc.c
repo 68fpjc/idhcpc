@@ -40,8 +40,8 @@ void keeppr_and_exit(void) { _dos_keeppr(&g_keeped - &g_keepst, 0); }
  * @return 0: 成功
  */
 int freepr(const idhcpcinfo *pidhcpcinfo) {
-  return _dos_mfree(
-      (void *)(pidhcpcinfo - (g_idhcpcinfo - g_keepst) - sizeof(struct _psp)));
+  return _dos_mfree((void *)((char *)pidhcpcinfo - (&g_idhcpcinfo - &g_keepst) -
+                             sizeof(struct _psp)));
 }
 
 /**
