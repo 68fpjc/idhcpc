@@ -1,7 +1,4 @@
-#ifndef __DHCP_H__
-#define __DHCP_H__
-
-#include "nwsub.h"
+#include <etherdrv.h>
 
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
@@ -96,5 +93,3 @@ unsigned char *dhcp_get_domainname(const dhcp_msg *, char *);
 int dhcp_isreply(const dhcp_msg *, const unsigned long, unsigned char *);
 
 void dhcp_print(const dhcp_msg *);
-
-#endif /* __DHCP_H__ */

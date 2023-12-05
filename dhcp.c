@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "mynetwork.h"
+#include "nwsub.h"
 
 static unsigned char *dhcp_msg_common(const eaddr *, const unsigned long,
                                       const unsigned short, const unsigned char,

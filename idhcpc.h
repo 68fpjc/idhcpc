@@ -1,6 +1,3 @@
-#ifndef __IDHCPC_H__
-#define __IDHCPC_H__
-
 /* idhcpcワーク */
 /* tsrarea.sと内容を合わせること */
 typedef struct {
@@ -40,5 +37,3 @@ int ontime(void);
 errno try_to_keep(const int, const int);
 errno try_to_release(const int, const int);
 void print_lease_time(const unsigned long, const unsigned long);
-
-#endif /* __IDHCPC_H__ */

@@ -1,6 +1,3 @@
-#ifndef __NWSUB_H__
-#define __NWSUB_H__
-
 #include <etherdrv.h>
 #include <socket.h>
 
@@ -13,5 +10,3 @@ int create_udp_socket(void);
 int connect2(const int, const unsigned short, const int, struct sockaddr_in *);
 int bind2(const int, const unsigned short, const int);
 void init_sockaddr_in(const unsigned short, const int, struct sockaddr_in *);
-
-#endif /* __NWSUB_H__ */
