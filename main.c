@@ -5,8 +5,8 @@
 #include "idhcpc.h"
 
 static char g_title[] =
-    "idhcpc.x - インチキDHCPクライアント - version 0.11 "
-    "Copyright 2002,03 Igarashi\n";
+    "idhcpc - インチキDHCPクライアント - version 0.11.1 "
+    "https://github.com/68fpjc\n";
 
 /**
  * @brief errnoに対応したエラーメッセージ

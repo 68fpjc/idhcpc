@@ -2,7 +2,7 @@
 	.text
 	.even
 
-MAGIC	.reg	'idhcpc.x version 0.11 Copyright 2002,03 Igarashi'
+MAGIC	.reg	'idhcpc version 0.11.1 https://github.com/68fpjc'
 
 _g_keepst::
 _g_idhcpcinfo::

@@ -1,7 +1,4 @@
-# インチキ DHCP クライアント idhcpc.x
-
-> [!NOTE]
-> 本テキストは、オリジナルのアーカイブに含まれていた idhcpc.txt を Markdown 化したものです。
+# インチキ DHCP クライアント idhcpc
 
 ## これはなに？
 
@@ -11,19 +8,19 @@ Human68k で動作する DHCP クライアントです。
 
 ## インストール
 
-idhcpc.x を、環境変数 path の指すディレクトリへコピーしてください。
+idhcpc.x を、環境変数 `path` の指すディレクトリへコピーしてください。
 
 ## 使い方
 
 Neptune-X / Nereid 等の LAN ボードが正しく動作している必要があります。
 
-また、あらかじめ TCP/IP ドライバ（xip.x 等）を常駐させておいてください。
+また、あらかじめ TCP/IP ドライバ（ [inetd.x](http://retropc.net/x68000/software/internet/kg/tcppacka/) / [hinetd.x](http://retropc.net/x68000/software/internet/tcpip/hinetd/) / [xip.x](http://retropc.net/x68000/software/internet/tcpip/xip/) 等）を常駐させておいてください。
 
 ```
 idhcpc
 ```
 
-LAN 上から DHCP サーバを探し、見つかった場合はサーバからコンフィギュレーション情報を取得し、IP アドレス・サブネットマスク等の設定を行い、メモリに常駐します。
+ネットワーク上から DHCP サーバを探し、見つかった場合はサーバからコンフィギュレーション情報を取得し、IP アドレス・サブネットマスク等の設定を行い、メモリに常駐します。
 
 DHCP サーバからの応答がない場合はリトライを 4 回行い、それでも応答がない場合はエラー終了します。
 
@@ -52,17 +49,17 @@ idhcpc -v -r
 ### 例
 
 ```
-@>xip                   ★ TCP/IPドライバの常駐
+@>xip                   ★ TCP/IP ドライバの常駐
 X680x0 IP driver xip.x β5 Modified by K.Shirakata.
 
-@>ifconfig lp0 up       ★ これはidhcpc.xとは関係ない
+@>ifconfig lp0 up       ★ これは idhcpc とは関係ない
 
-@>idhcpc                ★ idhcpc.xの常駐
-idhcpc.x - インチキDHCPクライアント - version 0.11 Copyright 2002,03 Igarashi
+@>idhcpc                ★ idhcpc の常駐
+idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
 コンフィギュレーションが完了しました.
 残りリース期間は 72 時間 0 分 0 秒 です.
 
-@>ifconfig en0          ★ 情報表示にはifconfig.xやinetdconf.xを使ってください
+@>ifconfig en0          ★ 情報表示には ifconfig.x や inetdconf.x を使ってください
 en0: flags=1b<UP,RUNNING,NOTRAILERS,BROADCAST>
         inet 192.168.0.2 netmask 0xffffff00 broadcast 192.168.0.255
 
@@ -76,61 +73,76 @@ domain name:            igarashi.net
         :
 
 @>idhcpc -l             ★ 残りリース期間の表示
-idhcpc.x - インチキDHCPクライアント - version 0.11 Copyright 2002,03 Igarashi
+idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
 残りリース期間は 70 時間 31 分 40 秒 です.
 
         :
         :
 
-@>idhcpc -r             ★ idhcpc.xの常駐解除
-idhcpc.x - インチキDHCPクライアント - version 0.11 Copyright 2002,03 Igarashi
+@>idhcpc -r             ★ idhcpc の常駐解除
+idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
 コンフィギュレーション情報を破棄しました.
 ```
 
-## 注意点
+## 注意
 
-- 本来、DHCP クライアントは、IP アドレスのリース期間終了を監視し、終了が近づいた場合にはリース期間の延長をサーバに要求したりといった処理をしなければなりません。が、実は idhcpc.x はこのあたりの処理をまったく行いません。なので、ユーザが残りリース期間を常に意識し、リース期間の終了前に idhcpc.x を常駐解除し、もう一度常駐させる、という操作を「手動で」行う必要があります。
+-   本来、DHCP クライアントは、IP アドレスのリース期間終了を監視し、終了が近づいた場合にはリース期間の延長をサーバに要求したりといった処理をしなければなりません。が、 idhcpc はこのあたりの処理をまったく行いません。なので、ユーザが残りリース期間を常に意識し、リース期間の終了前に idhcpc を常駐解除し、もう一度常駐させる、という操作を「手動で」行う必要があります。
 
-- 動作テストが不十分です。idhcpc.x を使って、うまく動かなかったり、ユーザがネットワーク管理者に怒られたりしても、私は知りません。
+-   動作テストが不十分です。
 
-## 今後の予定
+## ソースコードからのビルド
 
-ありません。が、気が向いたらバージョンアップするかもしれません。
+### [xdev68k](https://github.com/yosshin4004/xdev68k) の場合
 
-っつーか、誰かもっとまともなモノを作ってください。
+```
+make
+```
 
-## 配布規定
+事前にヘッダファイルとライブラリファイルを下記のように配置してください（xdev68k 標準の XC 環境ではなく、LIBC を使用します）。
 
-ご自由にどうぞ。
+-   [LIBC 1.1.32A ぱっち ＤＯＮ版 その４](http://retropc.net/x68000/software/develop/lib/libcdon/) → 下記 `libc` ディレクトリに配置
+-   [TCPPACKB](http://retropc.net/x68000/software/internet/kg/tcppackb/) → 下記 `misc` ディレクトリに配置
 
-## 謝辞
+```
+xdev68k/
+│
+├ include/
+│	│	ヘッダファイル
+│	├ libc/
+│	│
+│	└ misc/
+│
+└ lib/
+	│	ライブラリファイル
+	├ libc/
+	│
+	└ misc/
+```
 
-idhcpc.x の開発にあたり、以下のツール / ライブラリ / 参考文献を使用しました。作者の方々に感謝いたします。
+### X68000 実機 or エミュレータ環境の場合
 
-### ツール
+```
+make -f makefile.x68
+```
 
-- ether_ne.sys ver0.02 +M01
-- TCP/IP ドライバ無償配布パッケージ(A PACK)
-- xip.x β5
-- MicroEMACS 3.10 j1.43 (rel.5c6)
-- GNU Make version 3.77 [Human68k Release 2]
-- gcc 2.95.2 うぉ～てぃ～ (β４ 人柱版)
-- HAS060 version 3.09+85+12[g2as]
-- HLK evolution version 3.01+14[g2lk]
-- oar - Object ARchiver ver1.0.4
-- X68k Source Code Debugger v3.01+12
+xdev68k の場合と同様、LIBC と TCPPACKB が必要です。事前にヘッダファイルとライブラリファイルをそれぞれ、環境変数 `include` および `lib` の指すディレクトリに配置してください。
 
-### ライブラリ
+エミュレータ環境に下記をインストールし、ビルドが（とりあえず）通ることを確認しています。
 
-- TCP/IP ドライバ無償配布パッケージ(B PACK)
-- LIBC 1.1.32A ぱっち ＤＯＮ版 その４
-- keepchk.s（大昔の Oh!X に載っていた常駐判定ルーチン）
-- process.h（&lt;MUSH&gt;同梱のヘッダファイル）
+-   [GNU Make](https://github.com/kg68k/gnu-make-human68k)
+-   [真里子版 GCC](http://retropc.net/x68000/software/develop/c/gcc_mariko/)
+-   [LIBC 1.1.32A](http://retropc.net/x68000/software/develop/lib/libc1132a/)
+-   [HAS060.X](http://retropc.net/x68000/software/develop/as/has060/)
+-   [HLK evolution](https://github.com/kg68k/hlk-ev)
+
+## バイナリ配布
+
+idhcpc のビルド済みバイナリは xdev68k でビルドしたものです。
 
 ### 参考文献
 
-- Network Working Group Request For Comments: 2131（rfc2131）
-- Network Working Group Request For Comments: 2132（rfc2132）
+-   Network Working Group Request For Comments: 2131（rfc2131）
+-   Network Working Group Request For Comments: 2132（rfc2132）
 
 ## 連絡先
 
