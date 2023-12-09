@@ -156,8 +156,7 @@ static unsigned char *dhcp_msg_common(const eaddr *pmacaddr,
 
   /* クライアントID */
   *p++ = DHCP_CLIENTID;
-  *p++ = 7;
-  *p++ = 1;                        /* Ethernet */
+  *p++ = 6;
   memcpy(p, &pmacaddr->_eaddr, 6); /* MACアドレス */
   p += 6;
 
