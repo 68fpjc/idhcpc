@@ -348,7 +348,21 @@ void dhcp_print(const dhcp_msg *pmsg) {
   unsigned char buf[255 + 1];
 
   printf("==== DHCP message start ====\n");
-  printf("operation: %d\n", pmsg->h.op);
+  {
+    char *s;
+    switch (pmsg->h.op) {
+      case DHCP_BOOTREQUEST:
+        s = "DHCP_BOOTREQUEST";
+        break;
+      case DHCP_BOOTREPLY:
+        s = "DHCP_BOOTREPLY";
+        break;
+      default:
+        s = "";
+        break;
+    }
+    printf("operation: %d (%s)\n", pmsg->h.op, s);
+  }
   printf("client IP addr: %-15s ", n2a_ipaddr(pmsg->h.ciaddr, buf));
   printf("your IP addr:   %s\n", n2a_ipaddr(pmsg->h.yiaddr, buf));
   printf("server IP addr: %-15s ", n2a_ipaddr(pmsg->h.siaddr, buf));
@@ -424,7 +438,40 @@ void dhcp_print(const dhcp_msg *pmsg) {
                (unsigned int)ntohl(IPADDR(p[0], p[1], p[2], p[3])));
         break;
       case DHCP_MSGTYPE:
-        printf("\t%02d (DHCP_MSGTYPE): %d\n", DHCP_MSGTYPE, *p);
+        /* */
+        {
+          char *s;
+          switch (*p) {
+            case DHCPDISCOVER:
+              s = "DHCPDISCOVER";
+              break;
+            case DHCPOFFER:
+              s = "DHCPOFFER";
+              break;
+            case DHCPREQUEST:
+              s = "DHCPREQUEST";
+              break;
+            case DHCPDECLINE:
+              s = "DHCPDECLINE";
+              break;
+            case DHCPACK:
+              s = "DHCPACK";
+              break;
+            case DHCPNAK:
+              s = "DHCPNAK";
+              break;
+            case DHCPRELEASE:
+              s = "DHCPRELEASE";
+              break;
+            case DHCPINFORM:
+              s = "DHCPINFORM";
+              break;
+            default:
+              s = "";
+              break;
+          }
+          printf("\t%02d (DHCP_MSGTYPE): %d (%s)\n", DHCP_MSGTYPE, *p, s);
+        }
         break;
       case DHCP_SERVERID:
         printf("\t%02d (DHCP_SERVERID): %s\n", DHCP_SERVERID,
@@ -443,7 +490,13 @@ void dhcp_print(const dhcp_msg *pmsg) {
                (unsigned int)ntohl(IPADDR(p[0], p[1], p[2], p[3])));
         break;
       case DHCP_CLIENTID:
-        printf("\t%02d (DHCP_CLIENTID): %s\n", DHCP_CLIENTID, "");
+        printf("\t%02d (DHCP_CLIENTID):", DHCP_CLIENTID);
+        {
+          for (int i = 0; i < msglen; i++) {
+            printf(" %02x", p[i] & 0xff);
+          }
+        }
+        printf("\n");
         break;
       default:
         printf("\t%02d (unknown)\n", itemtype);
