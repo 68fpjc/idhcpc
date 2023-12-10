@@ -50,7 +50,6 @@ LIBS =\
 	${XDEV68K_DIR}/lib/libc/libc.a \
 	${XDEV68K_DIR}/lib/libc/libdos.a \
 	${XDEV68K_DIR}/lib/libc/libiocs.a \
-	${XDEV68K_DIR}/lib/misc/libether.a \
 	${XDEV68K_DIR}/lib/misc/libnetwork.a \
 	${XDEV68K_DIR}/lib/m68k_elf/m$(CPU)/libgcc.a \
 	${XDEV68K_DIR}/lib/m68k_elf/m$(CPU)/libstdc++.a \

@@ -5,23 +5,6 @@
 #include "mynetwork.h"
 
 /**
- * @brief 指定デバイスに対応するMACアドレスを取得する
- * @param devname デバイス名（e.g. "dev/en0"）
- * @param[out] pmacaddr MACアドレス格納域
- * @return TRUE 成功 / FALSE 失敗
- */
-int get_mac_address(const char *devname, eaddr *pmacaddr) {
-  int ret = FALSE;
-  int no;
-
-  if (ETDGetDriverVersion((char *)devname, &no) != -1) {
-    ETDGetMacAddr(pmacaddr, no);
-    ret = TRUE;
-  }
-  return ret;
-}
-
-/**
  * @brief UDPソケット作成
  * @param
  * @return ソケット識別子（socket()の戻り値）。<0ならエラー

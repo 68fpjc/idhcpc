@@ -5,22 +5,23 @@
 #include "mynetwork.h"
 #include "nwsub.h"
 
-static unsigned char *dhcp_msg_common(const eaddr *, const unsigned long,
+static unsigned char *dhcp_msg_common(const dhcp_hw_addr *, const unsigned long,
                                       const unsigned short, const unsigned char,
                                       dhcp_msg *);
 
 /**
  * @brief DHCPDISCOVERメッセージ作成
- * @param pmacaddr MACアドレス
+ * @param phwaddr ハードウェアアドレス情報
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
  * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcpdiscover(const eaddr *pmacaddr, const unsigned long xid,
-                            const unsigned short secs, dhcp_msg *pmsg) {
+void dhcp_make_dhcpdiscover(const dhcp_hw_addr *phwaddr,
+                            const unsigned long xid, const unsigned short secs,
+                            dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmacaddr, xid, secs, DHCPDISCOVER, pmsg); /* 共通部 */
+  p = dhcp_msg_common(phwaddr, xid, secs, DHCPDISCOVER, pmsg); /* 共通部 */
 
   pmsg->h.flags = htons(DHCP_BCAST); /* ブロードキャスト */
 
@@ -39,19 +40,20 @@ void dhcp_make_dhcpdiscover(const eaddr *pmacaddr, const unsigned long xid,
 
 /**
  * @brief DHCPREQUESTメッセージ作成
+ * @param phwaddr ハードウェアアドレス情報
  * @param yiaddr 要求IPアドレス
  * @param sid サーバID（=DHCPサーバIPアドレス）
- * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
  * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcprequest(const unsigned long yiaddr, const unsigned long sid,
-                           const eaddr *pmacaddr, const unsigned long xid,
-                           const unsigned short secs, dhcp_msg *pmsg) {
+void dhcp_make_dhcprequest(const dhcp_hw_addr *phwaddr,
+                           const unsigned long yiaddr, const unsigned long sid,
+                           const unsigned long xid, const unsigned short secs,
+                           dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmacaddr, xid, secs, DHCPREQUEST, pmsg); /* 共通部 */
+  p = dhcp_msg_common(phwaddr, xid, secs, DHCPREQUEST, pmsg); /* 共通部 */
 
   pmsg->h.flags = htons(DHCP_BCAST); /* ブロードキャスト */
 
@@ -91,18 +93,18 @@ void dhcp_make_dhcprequest(const unsigned long yiaddr, const unsigned long sid,
 
 /**
  * @brief DHCPRELEASEメッセージ作成
+ * @param phwaddr ハードウェアアドレス情報
  * @param myaddr クライアントIPアドレス
  * @param sid サーバID（=DHCPサーバIPアドレス）
- * @param pmacaddr MACアドレス
  * @param xid トランザクションID（32bit random）
  * @param[out] pmsg メッセージバッファ
  */
-void dhcp_make_dhcprelease(const unsigned long myaddr, const unsigned long sid,
-                           const eaddr *pmacaddr, const unsigned long xid,
-                           dhcp_msg *pmsg) {
+void dhcp_make_dhcprelease(const dhcp_hw_addr *phwaddr,
+                           const unsigned long myaddr, const unsigned long sid,
+                           const unsigned long xid, dhcp_msg *pmsg) {
   unsigned char *p;
 
-  p = dhcp_msg_common(pmacaddr, xid, 0, DHCPRELEASE, pmsg); /* 共通部 */
+  p = dhcp_msg_common(phwaddr, xid, 0, DHCPRELEASE, pmsg); /* 共通部 */
 
   /* クライアントIPアドレス */
   pmsg->h.ciaddr = htonl(myaddr);
@@ -122,14 +124,14 @@ void dhcp_make_dhcprelease(const unsigned long myaddr, const unsigned long sid,
 
 /**
  * @brief DHCPメッセージ作成共通部
- * @param pmacaddr MACアドレス
+ * @param phwaddr ハードウェアアドレス情報
  * @param xid トランザクションID（32bit random）
  * @param secs 起動からの経過時間
  * @param msgtype メッセージタイプ
  * @param[out] pmsg メッセージバッファ
  * @return
  */
-static unsigned char *dhcp_msg_common(const eaddr *pmacaddr,
+static unsigned char *dhcp_msg_common(const dhcp_hw_addr *phwaddr,
                                       const unsigned long xid,
                                       const unsigned short secs,
                                       const unsigned char msgtype,
@@ -138,10 +140,10 @@ static unsigned char *dhcp_msg_common(const eaddr *pmacaddr,
 
   memset(pmsg, 0, sizeof(*pmsg)); /* 必ずゼロで埋めておくこと */
 
-  pmsg->h.op = DHCP_BOOTREQUEST;                 /* 要求 */
-  pmsg->h.htype = 1;                             /* Ethernet */
-  pmsg->h.hlen = 6;                              /* MACアドレス長 */
-  memcpy(&pmsg->h.chaddr, &pmacaddr->_eaddr, 6); /* MACアドレス */
+  pmsg->h.op = DHCP_BOOTREQUEST; /* 要求 */
+  pmsg->h.htype = phwaddr->arp_hw_type;
+  pmsg->h.hlen = phwaddr->hw_addr_len;
+  memcpy(&pmsg->h.chaddr, &phwaddr->hw_addr, phwaddr->hw_addr_len);
   pmsg->h.xid = xid;          /* トランザクションID */
   pmsg->h.secs = htons(secs); /* マシン起動からの経過時間 */
   /* オプション部の先頭は必ずmagic cookie */
@@ -156,9 +158,9 @@ static unsigned char *dhcp_msg_common(const eaddr *pmacaddr,
 
   /* クライアントID */
   *p++ = DHCP_CLIENTID;
-  *p++ = 6;
-  memcpy(p, &pmacaddr->_eaddr, 6); /* MACアドレス */
-  p += 6;
+  *p++ = phwaddr->hw_addr_len;
+  memcpy(p, &phwaddr->hw_addr, phwaddr->hw_addr_len);
+  p += phwaddr->hw_addr_len;
 
   return p;
 }
@@ -491,7 +493,8 @@ void dhcp_print(const dhcp_msg *pmsg) {
       case DHCP_CLIENTID:
         printf("\t%02d (DHCP_CLIENTID):", DHCP_CLIENTID);
         {
-          for (int i = 0; i < msglen; i++) {
+          int i;
+          for (i = 0; i < msglen; i++) {
             printf(" %02x", p[i] & 0xff);
           }
         }

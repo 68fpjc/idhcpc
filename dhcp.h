@@ -1,5 +1,3 @@
-#include <etherdrv.h>
-
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 
@@ -70,14 +68,22 @@ typedef struct tagdhcp_msg {
 #define DHCPRELEASE 7
 #define DHCPINFORM 8
 
+#define MAX_DHCP_HW_ADDR_LEN 16
+typedef struct tagdhcp_hw_addr {
+  unsigned char arp_hw_type;
+  unsigned char hw_addr_len;
+  unsigned char hw_addr[MAX_DHCP_HW_ADDR_LEN];
+} dhcp_hw_addr;
+
 /* prototype */
-void dhcp_make_dhcpdiscover(const eaddr *, const unsigned long,
+void dhcp_make_dhcpdiscover(const dhcp_hw_addr *, const unsigned long,
                             const unsigned short, dhcp_msg *);
-void dhcp_make_dhcprequest(const unsigned long, const unsigned long,
-                           const eaddr *, const unsigned long,
+void dhcp_make_dhcprequest(const dhcp_hw_addr *, const unsigned long,
+                           const unsigned long, const unsigned long,
                            const unsigned short, dhcp_msg *);
-void dhcp_make_dhcprelease(const unsigned long, const unsigned long,
-                           const eaddr *, const unsigned long, dhcp_msg *);
+void dhcp_make_dhcprelease(const dhcp_hw_addr *, const unsigned long,
+                           const unsigned long, const unsigned long,
+                           dhcp_msg *);
 unsigned char *dhcp_searchfromopt(const dhcp_msg *, const unsigned char);
 unsigned char *dhcp_get_4octet(const dhcp_msg *, const unsigned char,
                                unsigned long *);
