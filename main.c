@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
   int vflag = 0;
   int keepflag;
   idhcpcinfo *pidhcpcinfo;
+  const char *ifname = "en0";
   int i;
 
   printf(g_title);
@@ -88,7 +89,7 @@ int main(int argc, char *argv[]) {
 
   if (rflag) {
     /* 常駐解除処理 */
-    if ((err = try_to_release(vflag, keepflag)) != NOERROR) {
+    if ((err = try_to_release(vflag, keepflag, ifname)) != NOERROR) {
       put_error(err);
       return EXIT_FAILURE;
     } else {
@@ -103,7 +104,7 @@ int main(int argc, char *argv[]) {
     }
   } else {
     /* 常駐処理 */
-    if ((err = try_to_keep(vflag, keepflag)) != NOERROR) {
+    if ((err = try_to_keep(vflag, keepflag, ifname)) != NOERROR) {
       put_error(err);
       return EXIT_FAILURE;
     } else {

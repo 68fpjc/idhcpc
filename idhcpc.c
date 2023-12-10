@@ -14,8 +14,6 @@ typedef struct {
   int r; /* 受信用UDPソケット識別子 */
 } udpsockets;
 
-static char g_ifname[] = "en0";
-
 extern const char g_keepst; /* 常駐部先頭アドレス */
 extern const char g_magic; /* 常駐判定チェック用文字列アドレス */
 extern const char g_keeped; /* 常駐部終端アドレス */
@@ -90,9 +88,10 @@ int ontime(void) { return _iocs_ontime(); }
  * @brief 常駐処理
  * @param verbose 非0でバーボーズモード
  * @param keepflag 常駐判定フラグ
+ * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_keep(const int verbose, const int keepflag) {
+errno try_to_keep(const int verbose, const int keepflag, const char *ifname) {
   errno err;
 
   if (keepflag) {
@@ -101,7 +100,7 @@ errno try_to_keep(const int verbose, const int keepflag) {
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if ((err = prepare_iface(g_ifname, &piface, &hwaddr)) == NOERROR) {
+    if ((err = prepare_iface(ifname, &piface, &hwaddr)) == NOERROR) {
       udpsockets sockets = create_sockets();
       struct sockaddr_in inaddr_s;
       unsigned long me;
@@ -124,9 +123,11 @@ errno try_to_keep(const int verbose, const int keepflag) {
  * @brief 常駐解除処理
  * @param verbose 非0でバーボーズモード
  * @param keepflag 常駐判定フラグ
+ * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_release(const int verbose, const int keepflag) {
+errno try_to_release(const int verbose, const int keepflag,
+                     const char *ifname) {
   errno err;
 
   if (!keepflag) {
@@ -135,7 +136,7 @@ errno try_to_release(const int verbose, const int keepflag) {
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if (prepare_iface(g_ifname, &piface, &hwaddr) != NOERROR) {
+    if (prepare_iface(ifname, &piface, &hwaddr) != NOERROR) {
       err = NOERROR; /* DHCPRELEASEの発行は行わず、常駐解除のみ */
     } else {
       udpsockets sockets = create_sockets();
