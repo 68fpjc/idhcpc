@@ -1,3 +1,6 @@
+#ifndef DHCP_H
+#define DHCP_H
+
 #define DHCP_SERVER_PORT 67
 #define DHCP_CLIENT_PORT 68
 
@@ -22,6 +25,8 @@ typedef struct tagdhcp_msg {
   dhcp_msg0 h;
   unsigned char options[312]; /* 固定長… */
 } dhcp_msg;
+
+#define IPADDR(n1, n2, n3, n4) ((n1 << 24) | (n2 << 16) | (n3 << 8) | n4)
 
 #define DHCP_LIMITEDBCAST \
   IPADDR(255, 255, 255, 255) /* ブロードキャストアドレス */
@@ -99,3 +104,5 @@ unsigned char *dhcp_get_domainname(const dhcp_msg *, char *);
 int dhcp_isreply(const dhcp_msg *, const unsigned long, unsigned char *);
 
 void dhcp_print(const dhcp_msg *);
+
+#endif /* DHCP_H */

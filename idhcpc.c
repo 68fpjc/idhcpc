@@ -106,7 +106,7 @@ errno try_to_keep(const int verbose, const int keepflag, const char *ifname) {
       unsigned long me;
       unsigned long server;
 
-      TRUE &&
+      (!0) &&
           ((err = prepare_discover(piface, &sockets, &inaddr_s)) == NOERROR) &&
           ((err = discover_dhcp_server(verbose, &hwaddr, &sockets, &me, &server,
                                        &inaddr_s)) == NOERROR) &&

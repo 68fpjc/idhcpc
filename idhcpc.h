@@ -1,3 +1,6 @@
+#ifndef IDHCPC_H
+#define IDHCPC_HDHCP_H
+
 /* idhcpcワーク */
 /* tsrarea.sと内容を合わせること */
 typedef struct {
@@ -37,3 +40,5 @@ int ontime(void);
 errno try_to_keep(const int, const int, const char *);
 errno try_to_release(const int, const int, const char *);
 void print_lease_time(const unsigned long, const unsigned long);
+
+#endif /* IDHCPC_H */
