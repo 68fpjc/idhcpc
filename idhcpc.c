@@ -516,8 +516,7 @@ static errno release_config(const int verbose, iface *piface,
   }
   sendto(psockets->s, (char *)&msg, sizeof(msg), 0, (char *)&inaddr_s,
          sizeof(inaddr_s));
-  /* while (socklen(g_sock_s, 1)) ;*/
-
+  delaysec(50); /* 少し待つ */
   iface_when_release(piface);
 
   return NOERROR;

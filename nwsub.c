@@ -49,6 +49,6 @@ void init_sockaddr_in(const unsigned short portno, const int ipaddr,
                       struct sockaddr_in *p) {
   memset(p, 0, sizeof(*p)); /* 0 で埋めておく */
   p->sin_family = AF_INET;
-  p->sin_port = htons(portno);
-  p->sin_addr.s_addr = htonl(ipaddr);
+  p->sin_port = portno;
+  p->sin_addr.s_addr = ipaddr;
 }
