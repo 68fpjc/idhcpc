@@ -5,7 +5,7 @@
 #include "idhcpc.h"
 
 static char g_title[] =
-    "idhcpc - インチキDHCPクライアント - version 0.11.1 "
+    "idhcpc - インチキDHCPクライアント - version 0.11.2 "
     "https://github.com/68fpjc\n";
 
 /**

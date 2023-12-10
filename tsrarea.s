@@ -2,7 +2,7 @@
 	.text
 	.even
 
-MAGIC	.reg	'idhcpc version 0.11.1 https://github.com/68fpjc'
+MAGIC	.reg	'idhcpc version 0.11.2 https://github.com/68fpjc'
 
 _g_keepst::
 _g_idhcpcinfo::
