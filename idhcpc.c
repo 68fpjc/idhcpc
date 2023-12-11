@@ -207,17 +207,11 @@ static errno prepare_iface(const char *ifname, iface **ppiface,
     return ERR_NODEVICE;
   }
   {
-    iface *p, *p0;
+    iface *p;
 
-    if ((p0 = iface_lookupn((char *)ifname)) != NULL) {
-      p = p0;
-    } else {
-      p = get_new_iface((char *)ifname);
+    if ((p = iface_lookupn((char *)ifname)) == NULL) {
+      return ERR_NOIFACE;
     }
-    if (p0 == NULL) {
-      link_new_iface(p);
-    }
-    /* delaysec(150); */
     *ppiface = p;
   }
   fill_dhcp_hw_addr(*ppiface, phwaddr);
@@ -546,6 +540,7 @@ static void iface_when_discover(iface *piface) {
   piface->my_ip_addr = 0;
   piface->broad_cast = DHCP_LIMITEDBCAST;
   piface->flag |= IFACE_UP | IFACE_BROAD;
+  link_new_iface(piface);
 }
 
 /**
@@ -560,6 +555,7 @@ static void iface_when_request(const unsigned long subnetmask,
   piface->net_mask = subnetmask;
   piface->broad_cast = (piface->my_ip_addr & subnetmask) | ~subnetmask;
   piface->flag |= IFACE_UP;
+  link_new_iface(piface);
   {
     unsigned long *p = g_idhcpcinfo.dns, addr;
 
@@ -584,16 +580,6 @@ static void iface_when_request(const unsigned long subnetmask,
  */
 static void iface_when_release(iface *piface) {
   {
-    if (piface->flag & IFACE_UP) {
-      piface->stop(piface); /* これを実行しないと割り込みが消えないらしい */
-      delaysec(150); /* 多少ウェイトをかまさないとまずいみたい */
-    }
-    piface->my_ip_addr = 0;
-    piface->net_mask = 0;
-    piface->broad_cast = 0;
-    piface->flag &= ~(IFACE_UP | IFACE_BROAD);
-  }
-  {
     unsigned long *p = g_idhcpcinfo.dns, addr;
 
     while ((addr = *p++)) {
@@ -605,6 +591,16 @@ static void iface_when_release(iface *piface) {
     route *def;
     rt_top(&def);
     def->gateway = 0;
+  }
+  {
+    if (piface->flag & IFACE_UP) {
+      piface->stop(piface);
+    }
+    piface->my_ip_addr = 0;
+    piface->net_mask = 0;
+    piface->broad_cast = 0;
+    piface->flag &= ~(IFACE_UP | IFACE_BROAD);
+    link_new_iface(piface);
   }
 }
 

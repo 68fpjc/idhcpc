@@ -18,6 +18,7 @@ typedef struct {
 typedef enum {
   NOERROR,
   ERR_NODEVICE,    /* デバイスエラー */
+  ERR_NOIFACE,     /* インタフェースエラー */
   ERR_SOCKET,      /* ソケット作成エラー */
   ERR_CONNECT,     /* DHCPサーバポート接続エラー */
   ERR_BIND,        /* DHCPクライアントポート接続エラー */

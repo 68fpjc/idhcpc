@@ -14,6 +14,7 @@ static char g_title[] =
 static char *g_errmes[] = {
     /* NOERROR         */ "",
     /* ERR_NODEVICE    */ "ネットワークデバイスがインストールされていません.",
+    /* ERR_NOIFACE     */ "インタフェースが見つかりません.",
     /* ERR_SOCKET      */ "ソケットを作成できません.",
     /* ERR_CONNECT     */ "DHCPサーバポートへの接続に失敗しました.",
     /* ERR_BIND        */ "DHCPクライアントポートへの接続に失敗しました.",
