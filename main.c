@@ -16,15 +16,15 @@ static char *g_errmes[] = {
     /* ERR_NODEVICE    */ "ネットワークデバイスがインストールされていません.",
     /* ERR_NOIFACE     */ "インタフェースが見つかりません.",
     /* ERR_SOCKET      */ "ソケットを作成できません.",
-    /* ERR_CONNECT     */ "DHCPサーバポートへの接続に失敗しました.",
-    /* ERR_BIND        */ "DHCPクライアントポートへの接続に失敗しました.",
+    /* ERR_CONNECT     */ "DHCPサーバポートへ接続できません.",
+    /* ERR_BIND        */ "DHCPクライアントポートへ接続できません.",
     /* ERR_TIMEOUT     */ "タイムアウトです.",
     /* ERR_NAK         */ "DHCPサーバから要求を拒否されました.",
-    /* ERR_NOYIADDR    */ "IPアドレスを取得できませんでした.",
-    /* ERR_NOLEASETIME */ "リース期間を取得できませんでした.",
+    /* ERR_NOYIADDR    */ "IPアドレスを取得できません.",
+    /* ERR_NOLEASETIME */ "リース期間を取得できません.",
     /* ERR_NOSID       */ "DHCPサーバのIPアドレスを取得できません.",
-    /* ERR_NOTKEPT     */ "idpcpcが起動していません.",
-    /* ERR_ALREADYKEPT */ "idpcpcはすでに起動しています.",
+    /* ERR_NOTKEPT     */ "idpcpcが常駐していません.",
+    /* ERR_ALREADYKEPT */ "idpcpcはすでに常駐しています.",
 };
 
 static char g_usgmes[] =
@@ -144,6 +144,6 @@ static errno try_to_print(const int keepflag) {
  * @param errno エラーコード
  */
 static void put_error(const int errno) {
-  printf("エラーが発生しました. %s\n", g_errmes[errno]);
+  printf("%s\n", g_errmes[errno]);
   fflush(stdout);
 }
