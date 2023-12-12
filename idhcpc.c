@@ -209,7 +209,7 @@ static errno prepare_iface(const char *ifname, iface **ppiface,
   {
     iface *p;
 
-    if ((p = iface_lookupn((char *)ifname)) == NULL) {
+    if ((p = get_new_iface((char *)ifname)) == NULL) {
       return ERR_NOIFACE;
     }
     *ppiface = p;
