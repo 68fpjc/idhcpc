@@ -2,9 +2,8 @@
 #define IDHCPC_HDHCP_H
 
 /* idhcpcワーク */
-/* tsrarea.sと内容を合わせること */
+/* tsrarea.sとサイズを合わせること */
 typedef struct {
-  char magic[64];        /* 常駐チェック用文字列 */
   unsigned long startat; /* IPアドレス設定時のマシン起動時間（秒） */
   unsigned long leasetime;        /* リース期間（秒） */
   unsigned long renewtime;        /* 更新開始タイマ（秒） */
@@ -13,6 +12,8 @@ typedef struct {
   unsigned long server;           /* DHCPサーバIPアドレス */
   unsigned long gateway;          /* デフォルトゲートウェイ */
   unsigned long dns[256 / 4 - 1]; /* DNSサーバアドレス */
+  char ifname[8];                 /* インタフェース名 */
+  char magic[64];                 /* 常駐チェック用文字列 */
 } idhcpcinfo;
 
 typedef enum {
@@ -31,15 +32,16 @@ typedef enum {
   ERR_ALREADYKEPT, /* すでに常駐している */
 } errno;
 
-extern idhcpcinfo g_idhcpcinfo; /* idhcpcワーク */
+extern idhcpcinfo g_idhcpcinfo;   /* idhcpcワーク */
+extern const char g_idhcpcinfoed; /* idhcpcワーク終端 */
 
-int keepchk(idhcpcinfo **);
+int keepchk(const char *, idhcpcinfo **);
 void keeppr_and_exit(void);
 int freepr(const idhcpcinfo *);
 int ontime(void);
 
-errno try_to_keep(const int, const int, const char *);
-errno try_to_release(const int, const int, const char *);
-void print_lease_time(const unsigned long, const unsigned long);
+errno try_to_keep(const int, const int);
+errno try_to_release(const int, const int);
+void print_lease_time(const char *, const unsigned long, const unsigned long);
 
 #endif /* IDHCPC_H */

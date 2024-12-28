@@ -5,7 +5,7 @@
 #include "idhcpc.h"
 
 static char g_title[] =
-    "idhcpc - インチキDHCPクライアント - version 0.11.4 "
+    "idhcpc - インチキDHCPクライアント - version 0.12.0 "
     "https://github.com/68fpjc\n";
 
 /**
@@ -28,7 +28,7 @@ static char *g_errmes[] = {
 };
 
 static char g_usgmes[] =
-    "Usage: idhcpc [options]\n"
+    "Usage: idhcpc [options] [インタフェース名]\n"
     "Options:\n"
     "\t-r, --release\t\tコンフィギュレーション情報を破棄する\n"
     "\t-l, --print-lease-time\t残りリース期間を表示する\n"
@@ -40,6 +40,7 @@ static char g_removemes[] = "コンフィギュレーション情報を破棄し
 
 static errno try_to_print(const int);
 static void put_error(const int);
+static void printf_with_iface(const char *);
 
 /**
  * @brief メイン処理
@@ -53,7 +54,8 @@ int main(int argc, char *argv[]) {
   int vflag = 0;
   int keepflag;
   idhcpcinfo *pidhcpcinfo;
-  const char *ifname = "en0";
+  const char *ifname_default = "en0";
+  const char *ifname = ifname_default;
   int i;
 
   printf(g_title);
@@ -63,16 +65,26 @@ int main(int argc, char *argv[]) {
     int argerr = 0;
 
     for (i = 1; i < argc; i++) {
-      if ((!strcmp(argv[i], "-r")) || (!strcmp(argv[i], "--release"))) {
-        rflag = 1;
-      } else if ((!strcmp(argv[i], "-l")) ||
-                 (!strcmp(argv[i], "--print-lease-time"))) {
-        lflag = 1;
-      } else if ((!stricmp(argv[i], "-v")) || (!strcmp(argv[i], "--verbose"))) {
-        vflag = 1;
+      if (*argv[i] == '-') {
+        if ((!strcmp(argv[i], "-r")) || (!strcmp(argv[i], "--release"))) {
+          rflag = 1;
+        } else if ((!strcmp(argv[i], "-l")) ||
+                   (!strcmp(argv[i], "--print-lease-time"))) {
+          lflag = 1;
+        } else if ((!stricmp(argv[i], "-v")) ||
+                   (!strcmp(argv[i], "--verbose"))) {
+          vflag = 1;
+        } else {
+          argerr = 1;
+          break;
+        }
       } else {
-        argerr = 1;
-        break;
+        if (ifname == ifname_default) {
+          ifname = argv[i];
+        } else {
+          argerr = 1;
+          break;
+        }
       }
     }
     if (argerr || (rflag && lflag)) { /* -rと-pは同時指定できない */
@@ -82,7 +94,7 @@ int main(int argc, char *argv[]) {
   }
 
   /* ここで常駐チェックしておく */
-  keepflag = keepchk(&pidhcpcinfo);
+  keepflag = keepchk(ifname, &pidhcpcinfo);
   if (keepflag) {
     /* 常駐部に保存してあった情報をグローバルワークへ転送しておく */
     memcpy(&g_idhcpcinfo, pidhcpcinfo, sizeof(idhcpcinfo));
@@ -90,12 +102,12 @@ int main(int argc, char *argv[]) {
 
   if (rflag) {
     /* 常駐解除処理 */
-    if ((err = try_to_release(vflag, keepflag, ifname)) != NOERROR) {
+    if ((err = try_to_release(vflag, keepflag)) != NOERROR) {
       put_error(err);
       return EXIT_FAILURE;
     } else {
       freepr(pidhcpcinfo);
-      printf(g_removemes);
+      printf_with_iface(g_removemes);
     }
   } else if (lflag) {
     /* リース期間表示 */
@@ -105,12 +117,13 @@ int main(int argc, char *argv[]) {
     }
   } else {
     /* 常駐処理 */
-    if ((err = try_to_keep(vflag, keepflag, ifname)) != NOERROR) {
+    if ((err = try_to_keep(vflag, keepflag)) != NOERROR) {
       put_error(err);
       return EXIT_FAILURE;
     } else {
-      printf(g_keepmes);
-      print_lease_time(g_idhcpcinfo.leasetime, g_idhcpcinfo.startat);
+      printf_with_iface(g_keepmes);
+      print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
+                       g_idhcpcinfo.startat);
       keeppr_and_exit(); /* 常駐終了 */
     }
   }
@@ -131,7 +144,8 @@ static errno try_to_print(const int keepflag) {
       errno = ERR_NOTKEPT;
       break;
     }
-    print_lease_time(g_idhcpcinfo.leasetime, g_idhcpcinfo.startat);
+    print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
+                     g_idhcpcinfo.startat);
     errno = NOERROR;
     break;
   }
@@ -144,6 +158,14 @@ static errno try_to_print(const int keepflag) {
  * @param errno エラーコード
  */
 static void put_error(const int errno) {
-  printf("%s\n", g_errmes[errno]);
+  printf("%s: %s\n", g_idhcpcinfo.ifname, g_errmes[errno]);
   fflush(stdout);
+}
+
+/**
+ * @brief インタフェース名付きprintf
+ * @param s フォーマット
+ */
+static void printf_with_iface(const char *s) {
+  printf("%s: %s", g_idhcpcinfo.ifname, s);
 }

@@ -1,10 +1,10 @@
 EXECUTABLE = idhcpc.x
 
 CC = gcc
-CFLAGS = -O2 -Wall
+CFLAGS = -O2 -Wall -DNDEBUG
 AS = HAS060
 LD = $(CC)
-LDLIBS = -lnetwork -ldos -liocs
+LDLIBS = -lnetwork -ldos -liocs -lgcc
 
 export GCC_AS = $(AS)
 export GCC_LINK = hlk

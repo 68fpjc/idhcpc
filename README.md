@@ -12,6 +12,16 @@ idhcpc.x を、環境変数 `path` の指すディレクトリへコピーして
 
 ## 使い方
 
+```
+@>idhcpc --help
+idhcpc - インチキDHCPクライアント - version 0.xx.x https://github.com/68fpjc
+Usage: idhcpc [options] [インタフェース名]
+Options:
+        -r, --release           コンフィギュレーション情報を破棄する
+        -l, --print-lease-time  残りリース期間を表示する
+        -v, --verbose           詳細表示モード
+```
+
 Neptune-X / Nereid 等の LAN ボードが正しく動作している必要があります。
 
 また、あらかじめ TCP/IP ドライバ（ [inetd.x](http://retropc.net/x68000/software/internet/kg/tcppacka/) / [hinetd.x](http://retropc.net/x68000/software/internet/tcpip/hinetd/) / [xip.x](http://retropc.net/x68000/software/internet/tcpip/xip/) 等）を常駐させておいてください。
@@ -23,6 +33,8 @@ idhcpc
 ネットワーク上から DHCP サーバを探し、見つかった場合はサーバからコンフィギュレーション情報を取得し、IP アドレス・サブネットマスク等の設定を行い、メモリに常駐します。
 
 DHCP サーバからの応答がない場合はリトライを 4 回行い、それでも応答がない場合はエラー終了します。
+
+コマンドライン引数でインタフェースを指定できます。省略時は `en0` が指定されたものと見做します。
 
 ```
 idhcpc -l
@@ -55,9 +67,9 @@ X680x0 IP driver xip.x β5 Modified by K.Shirakata.
 @>ifconfig lp0 up       ★ これは idhcpc とは関係ない
 
 @>idhcpc                ★ idhcpc の常駐
-idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
-コンフィギュレーションが完了しました.
-残りリース期間は 72 時間 0 分 0 秒 です.
+idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+en0: コンフィギュレーションが完了しました.
+en0: 残りリース期間は 72 時間 0 分 0 秒 です.
 
 @>ifconfig en0          ★ 情報表示には ifconfig.x や inetdconf.x を使ってください
 en0: flags=1b<UP,RUNNING,NOTRAILERS,BROADCAST>
@@ -73,15 +85,15 @@ domain name:            igarashi.net
         :
 
 @>idhcpc -l             ★ 残りリース期間の表示
-idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
-残りリース期間は 70 時間 31 分 40 秒 です.
+idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+en0: 残りリース期間は 70 時間 31 分 40 秒 です.
 
         :
         :
 
 @>idhcpc -r             ★ idhcpc の常駐解除
-idhcpc - インチキDHCPクライアント - version 0.11.1  https://github.com/68fpjc/idhcpc
-コンフィギュレーション情報を破棄しました.
+idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+en0: コンフィギュレーション情報を破棄しました.
 ```
 
 ## 注意
@@ -131,7 +143,9 @@ xdev68k の場合と同様、LIBC と TCPPACKB が必要です。事前にヘッ
 
 -   [GNU Make](https://github.com/kg68k/gnu-make-human68k)
 -   [真里子版 GCC](http://retropc.net/x68000/software/develop/c/gcc_mariko/)
--   [LIBC 1.1.32A](http://retropc.net/x68000/software/develop/lib/libc1132a/)
+-   [LIBC 1.1.32A ぱっち ＤＯＮ版 その４](http://retropc.net/x68000/software/develop/lib/libcdon/)
+-   [libgnu](https://www.vector.co.jp/soft/x68/prog/se023312.html)
+-   [GCC2](http://retropc.net/x68000/software/develop/c/gcc2/) に収録されている libgcc.a
 -   [HAS060.X](http://retropc.net/x68000/software/develop/as/has060/)
 -   [HLK evolution](https://github.com/kg68k/hlk-ev)
 

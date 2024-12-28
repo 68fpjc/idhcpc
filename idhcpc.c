@@ -1,5 +1,7 @@
 #include "idhcpc.h"
 
+#include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/dos.h>
@@ -9,13 +11,14 @@
 #include "mynetwork.h"
 #include "nwsub.h"
 
+#define MAGIC_FORMAT "%s idhcpc https://github.com/68fpjc"
+
 typedef struct {
   int s; /* 送信用UDPソケット識別子 */
   int r; /* 受信用UDPソケット識別子 */
 } udpsockets;
 
 extern const char g_keepst; /* 常駐部先頭アドレス */
-extern const char g_magic; /* 常駐判定チェック用文字列アドレス */
 extern const char g_keeped; /* 常駐部終端アドレス */
 
 extern int _keepchk(const struct _mep *, const size_t, struct _mep **);
@@ -47,20 +50,32 @@ static void put_progress(void);
 
 /**
  * @brief 常駐判定
+ * @param ifname インタフェース名
  * @param[out] ppidhcpcinfo
  * idhcpcワークへのポインタ
  *   * 常駐している場合: 常駐プロセスのアドレス
  *   * 常駐していない場合: 自身のアドレス
  * @return 0: 常駐していない
  */
-int keepchk(idhcpcinfo **ppidhcpcinfo) {
-  struct _mep *pmep;
-  int keepflg =
-      _keepchk((struct _mep *)((char *)_dos_getpdb() - sizeof(struct _mep)),
-               &g_magic - &g_keepst, &pmep);
-  *ppidhcpcinfo = (idhcpcinfo *)((char *)pmep + sizeof(struct _mep) +
-                                 sizeof(struct _psp) + offsetof_idhcpcinfo());
-  return keepflg;
+int keepchk(const char *ifname, idhcpcinfo **ppidhcpcinfo) {
+  /* idhcpcワークのサイズチェック */
+  assert(&g_idhcpcinfoed - (char *)&g_idhcpcinfo == sizeof(idhcpcinfo));
+
+  /* インタフェース名をグローバルワークへコピーする */
+  strncpy(g_idhcpcinfo.ifname, ifname, sizeof(g_idhcpcinfo.ifname));
+  /* 常駐チェック用文字列を生成してグローバルワークへコピーする */
+  snprintf(g_idhcpcinfo.magic, sizeof(g_idhcpcinfo.magic), MAGIC_FORMAT,
+           g_idhcpcinfo.ifname);
+  {
+    struct _mep *pmep;
+    int keepflg = _keepchk(
+        (struct _mep *)((char *)_dos_getpdb() - sizeof(struct _mep)),
+        g_idhcpcinfo.magic - (char *)&g_idhcpcinfo + offsetof_idhcpcinfo(),
+        &pmep);
+    *ppidhcpcinfo = (idhcpcinfo *)((char *)pmep + sizeof(struct _mep) +
+                                   sizeof(struct _psp) + offsetof_idhcpcinfo());
+    return keepflg;
+  }
 }
 
 /**
@@ -91,7 +106,7 @@ int ontime(void) { return _iocs_ontime(); }
  * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_keep(const int verbose, const int keepflag, const char *ifname) {
+errno try_to_keep(const int verbose, const int keepflag) {
   errno err;
 
   if (keepflag) {
@@ -100,7 +115,8 @@ errno try_to_keep(const int verbose, const int keepflag, const char *ifname) {
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if ((err = prepare_iface(ifname, &piface, &hwaddr)) == NOERROR) {
+    if ((err = prepare_iface(g_idhcpcinfo.ifname, &piface, &hwaddr)) ==
+        NOERROR) {
       udpsockets sockets = create_sockets();
       struct sockaddr_in inaddr_s;
       unsigned long me;
@@ -126,8 +142,7 @@ errno try_to_keep(const int verbose, const int keepflag, const char *ifname) {
  * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_release(const int verbose, const int keepflag,
-                     const char *ifname) {
+errno try_to_release(const int verbose, const int keepflag) {
   errno err;
 
   if (!keepflag) {
@@ -136,7 +151,7 @@ errno try_to_release(const int verbose, const int keepflag,
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if (prepare_iface(ifname, &piface, &hwaddr) != NOERROR) {
+    if (prepare_iface(g_idhcpcinfo.ifname, &piface, &hwaddr) != NOERROR) {
       err = NOERROR; /* DHCPRELEASEの発行は行わず、常駐解除のみ */
     } else {
       udpsockets sockets = create_sockets();
@@ -153,22 +168,23 @@ errno try_to_release(const int verbose, const int keepflag,
 
 /**
  * @brief 残りリース期間表示処理メイン
+ * @param ifname インタフェース名
  * @param leasetime （全体）リース期間（秒）
  * @param startat IPアドレス設定時のマシン起動時間（秒）
  */
-void print_lease_time(const unsigned long leasetime,
+void print_lease_time(const char *ifname, const unsigned long leasetime,
                       const unsigned long startat) {
   int rest, rest_h, rest_m, rest_s;
 
   if (leasetime == 0xffffffff) {
-    printf("リース期間は無期限です.\n");
+    printf("%s: リース期間は無期限です.\n", ifname);
   } else {
     rest = (int)leasetime - (ontime() / 100 - (int)startat);
     rest_s = rest % 60;
     rest /= 60;
     rest_m = rest % 60;
     rest_h = rest / 60;
-    printf("残りリース期間は");
+    printf("%s: 残りリース期間は", ifname);
     if (rest_h) printf(" %d 時間", rest_h);
     if (rest_m) printf(" %d 分", rest_m);
     printf(" %d 秒 です.\n", rest_s);
@@ -622,8 +638,7 @@ static void fill_dhcp_hw_addr(const iface *piface, dhcp_hw_addr *phwaddr) {
 static void delaysec(const int tm) {
   int endat = ontime() + tm;
 
-  while (endat > ontime())
-    ;
+  while (endat > ontime());
 }
 
 /**
