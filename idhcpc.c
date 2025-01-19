@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/dos.h>
 #include <sys/iocs.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "dhcp.h"
@@ -643,11 +644,16 @@ static void delaysec(const int tm) { usleep(tm * 10000); }
  * @param
  */
 static void put_progress(void) {
-  static int ontime0 = 0;
-  int ontime1 = ontime();
-  if (ontime1 - ontime0 >= 50) {
-    printf(".");
-    fflush(stdout);
-    ontime0 = ontime1;
+  static time_t oldtime = 0;
+  if (oldtime == 0) {
+    oldtime = time(NULL);
+  }
+  { /* 1 秒おきにドットを表示する */
+    time_t newtime = time(NULL);
+    if (difftime(newtime, oldtime) > 0) {
+      printf(".");
+      fflush(stdout);
+      oldtime = newtime;
+    }
   }
 }
