@@ -1,7 +1,6 @@
 #ifndef NWSUB_H
 #define NWSUB_H
 
-#include <etherdrv.h>
 #include <socket.h>
 
 int create_udp_socket(void);
