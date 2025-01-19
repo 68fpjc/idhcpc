@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/dos.h>
 #include <sys/iocs.h>
+#include <unistd.h>
 
 #include "dhcp.h"
 #include "mynetwork.h"
@@ -635,11 +636,7 @@ static void fill_dhcp_hw_addr(const iface *piface, dhcp_hw_addr *phwaddr) {
  * @brief 1/100秒単位でウェイトをかます
  * @param tm ウェイトカウント（）
  */
-static void delaysec(const int tm) {
-  int endat = ontime() + tm;
-
-  while (endat > ontime());
-}
+static void delaysec(const int tm) { usleep(tm * 10000); }
 
 /**
  * @brief インチキプログレス表示
