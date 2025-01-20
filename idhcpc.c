@@ -15,16 +15,28 @@
 
 #define MAGIC_FORMAT "%s idhcpc https://github.com/68fpjc"
 
+/* idhcpc ワーク */
+/* tsrarea.s とサイズを合わせること */
 typedef struct {
-  int s; /* 送信用UDPソケット識別子 */
-  int r; /* 受信用UDPソケット識別子 */
+  time_t startat;                 /* DHCP クライアント起動日時 */
+  time_t dhcpackat;               /* DHCPACK 受信日時 */
+  unsigned long leasetime;        /* リース期間 (秒) */
+  unsigned long renewtime;        /* 更新開始タイマ (秒) */
+  unsigned long rebindtime;       /* 再結合開始タイマ (秒) */
+  unsigned long me;               /* 自分の IP アドレス */
+  unsigned long server;           /* DHCP サーバ IP アドレス */
+  unsigned long gateway;          /* デフォルトゲートウェイ */
+  unsigned long dns[256 / 4 - 1]; /* DNS サーバアドレス */
+  char ifname[8];                 /* インタフェース名 */
+  char magic[64];                 /* 常駐チェック用文字列 */
+} idhcpcinfo;
+
+typedef struct {
+  int s; /* 送信用 UDP ソケット識別子 */
+  int r; /* 受信用 UDP ソケット識別子 */
 } udpsockets;
 
-extern const char g_keepst; /* 常駐部先頭アドレス */
-extern const char g_keeped; /* 常駐部終端アドレス */
-
-extern int _keepchk(const struct _mep *, const size_t, struct _mep **);
-
+static int initialize(const char *);
 static int offsetof_idhcpcinfo(void);
 static udpsockets create_sockets(void);
 static errno prepare_iface(const char *, iface **, dhcp_hw_addr *);
@@ -34,13 +46,13 @@ static errno discover_dhcp_server(const int, const dhcp_hw_addr *,
                                   unsigned long *, struct sockaddr_in *);
 static errno request_to_dhcp_server(const int, const dhcp_hw_addr *,
                                     const udpsockets *, const unsigned long,
-                                    const unsigned long, idhcpcinfo *,
-                                    struct sockaddr_in *, iface *);
+                                    const unsigned long, struct sockaddr_in *,
+                                    iface *);
 static errno send_and_receive(const int, const dhcp_hw_addr *,
                               const udpsockets *, const unsigned long,
                               const unsigned long, const int, dhcp_msg *,
                               struct sockaddr_in *);
-static errno fill_idhcpcinfo(idhcpcinfo *, unsigned long *, char *, dhcp_msg *);
+static errno fill_idhcpcinfo(unsigned long *, char *, dhcp_msg *);
 static errno release_config(const int, iface *, dhcp_hw_addr *, udpsockets *);
 static void close_sockets(udpsockets *);
 static void iface_when_discover(iface *);
@@ -50,48 +62,24 @@ static void fill_dhcp_hw_addr(const iface *, dhcp_hw_addr *);
 static void delaysec(const int);
 static void put_progress(void);
 
-/**
- * @brief 常駐判定
- * @param ifname インタフェース名
- * @param[out] ppidhcpcinfo
- * idhcpcワークへのポインタ
- *   * 常駐している場合: 常駐プロセスのアドレス
- *   * 常駐していない場合: 自身のアドレス
- * @return 0: 常駐していない
- */
-int keepchk(const char *ifname, idhcpcinfo **ppidhcpcinfo) {
-  /* idhcpcワークのサイズチェック */
-  assert(&g_idhcpcinfoed - (char *)&g_idhcpcinfo == sizeof(idhcpcinfo));
-
-  /* インタフェース名をグローバルワークへコピーする */
-  strncpy(g_idhcpcinfo.ifname, ifname, sizeof(g_idhcpcinfo.ifname));
-  /* 常駐チェック用文字列を生成してグローバルワークへコピーする */
-  snprintf(g_idhcpcinfo.magic, sizeof(g_idhcpcinfo.magic), MAGIC_FORMAT,
-           g_idhcpcinfo.ifname);
-  {
-    struct _mep *pmep;
-    int keepflg = _keepchk(
-        (struct _mep *)((char *)_dos_getpdb() - sizeof(struct _mep)),
-        g_idhcpcinfo.magic - (char *)&g_idhcpcinfo + offsetof_idhcpcinfo(),
-        &pmep);
-    *ppidhcpcinfo = (idhcpcinfo *)((char *)pmep + sizeof(struct _mep) +
-                                   sizeof(struct _psp) + offsetof_idhcpcinfo());
-    return keepflg;
-  }
-}
+idhcpcinfo *g_pidhcpcinfo;
 
 /**
  * @brief 常駐終了
  */
-void keeppr_and_exit(void) { _dos_keeppr(&g_keeped - &g_keepst, 0); }
+void keeppr_and_exit(void) {
+  extern const char g_keepst; /* 常駐部先頭アドレス */
+  extern const char g_keeped; /* 常駐部終端アドレス */
+
+  _dos_keeppr(&g_keeped - &g_keepst, 0);
+}
 
 /**
  * @brief 常駐解除
- * @param pidhcpcinfo idhcpcワークへのポインタ
  * @return 0: 成功
  */
-int freepr(const idhcpcinfo *pidhcpcinfo) {
-  return _dos_mfree((void *)((char *)pidhcpcinfo - offsetof_idhcpcinfo() -
+int freepr(void) {
+  return _dos_mfree((void *)((char *)g_pidhcpcinfo - offsetof_idhcpcinfo() -
                              sizeof(struct _psp)));
 }
 
@@ -103,36 +91,34 @@ int ontime(void) { return _iocs_ontime(); }
 
 /**
  * @brief 常駐処理
- * @param verbose 非0でバーボーズモード
- * @param keepflag 常駐判定フラグ
+ * @param verbose 非 0 でバーボーズモード
  * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_keep(const int verbose, const int keepflag) {
+errno try_to_keep(const int verbose, const char *ifname) {
   errno err;
 
-  if (keepflag) {
+  if (initialize(ifname)) {
     err = ERR_ALREADYKEPT;
   } else {
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if ((err = prepare_iface(g_idhcpcinfo.ifname, &piface, &hwaddr)) ==
+    if ((err = prepare_iface(g_pidhcpcinfo->ifname, &piface, &hwaddr)) ==
         NOERROR) {
       udpsockets sockets = create_sockets();
       struct sockaddr_in inaddr_s;
       unsigned long me;
       unsigned long server;
 
-      g_idhcpcinfo.startat = time(NULL); /* 起動日時 */
+      g_pidhcpcinfo->startat = time(NULL); /* 起動日時 */
 
       (!0) &&
           ((err = prepare_discover(piface, &sockets, &inaddr_s)) == NOERROR) &&
           ((err = discover_dhcp_server(verbose, &hwaddr, &sockets, &me, &server,
                                        &inaddr_s)) == NOERROR) &&
           ((err = request_to_dhcp_server(verbose, &hwaddr, &sockets, me, server,
-                                         &g_idhcpcinfo, &inaddr_s, piface)) ==
-           NOERROR);
+                                         &inaddr_s, piface)) == NOERROR);
       close_sockets(&sockets);
     }
   }
@@ -141,22 +127,21 @@ errno try_to_keep(const int verbose, const int keepflag) {
 
 /**
  * @brief 常駐解除処理
- * @param verbose 非0でバーボーズモード
- * @param keepflag 常駐判定フラグ
+ * @param verbose 非 0 でバーボーズモード
  * @param ifname インタフェース名
  * @return エラーコード
  */
-errno try_to_release(const int verbose, const int keepflag) {
+errno try_to_release(const int verbose, const char *ifname) {
   errno err;
 
-  if (!keepflag) {
+  if (!initialize(ifname)) {
     err = ERR_NOTKEPT;
   } else {
     iface *piface;
     dhcp_hw_addr hwaddr;
 
-    if (prepare_iface(g_idhcpcinfo.ifname, &piface, &hwaddr) != NOERROR) {
-      err = NOERROR; /* DHCPRELEASEの発行は行わず、常駐解除のみ */
+    if (prepare_iface(g_pidhcpcinfo->ifname, &piface, &hwaddr) != NOERROR) {
+      err = NOERROR; /* DHCPRELEASE の発行は行わず、常駐解除のみ */
     } else {
       udpsockets sockets = create_sockets();
 
@@ -172,25 +157,82 @@ errno try_to_release(const int verbose, const int keepflag) {
 
 /**
  * @brief 残りリース期間を返す
- * @return 残りリース期間. 無期限の場合は -1
+ * @param ifname インタフェース名
+ * @param force 非 0 で強制的にリース期間を取得する (常駐時専用)
+ * @param[out] pleasetime 残りリース期間格納域. 無期限の場合は -1 が格納される
+ * @return エラーコード
  */
-int get_remaining(void) {
-  return g_idhcpcinfo.leasetime == 0xffffffff
-             ? -1
-             : (int)g_idhcpcinfo.leasetime -
-                   (int)difftime(time(NULL), g_idhcpcinfo.dhcpackat);
+errno get_remaining(const char *ifname, const int force, int *pleasetime) {
+  errno err;
+
+  if (!initialize(ifname) && !force) {
+    err = ERR_NOTKEPT;
+  } else {
+    unsigned long leasetime = g_pidhcpcinfo->leasetime;
+    *pleasetime = leasetime == 0xffffffff
+                      ? -1
+                      : (int)leasetime -
+                            (int)difftime(time(NULL), g_pidhcpcinfo->dhcpackat);
+    err = NOERROR;
+  }
+  return err;
 }
 
 /**
- * @brief PSP末尾からidhcpcワーク先頭までのオフセットを返す
+ * @brief 初期化処理
+ *   * 常駐判定
+ *   * g_pidhcpcinfo の初期化
+ * @param ifname インタフェース名
+ * @return 0: 常駐していない
+ */
+static int initialize(const char *ifname) {
+  static int initialized = 0;
+  static int kept = 0;
+
+  if (!initialized) {
+    extern idhcpcinfo g_idhcpcinfo;   /* idhcpc ワーク */
+    extern const char g_idhcpcinfoed; /* idhcpc ワーク終端 */
+
+    /* idhcpc ワークのサイズチェック */
+    assert(&g_idhcpcinfoed - (char *)&g_idhcpcinfo == sizeof(idhcpcinfo));
+
+    /* インタフェース名を非常駐部のワークへコピーしておく */
+    strncpy(g_idhcpcinfo.ifname, ifname, sizeof(g_idhcpcinfo.ifname));
+    /* 常駐チェック用文字列を生成して非常駐部のワークへコピーしておく */
+    snprintf(g_idhcpcinfo.magic, sizeof(g_idhcpcinfo.magic), MAGIC_FORMAT,
+             g_idhcpcinfo.ifname);
+    {
+      extern int _keepchk(const struct _mep *, const size_t, struct _mep **);
+
+      struct _mep *pmep;
+
+      kept = _keepchk(
+          (struct _mep *)((char *)_dos_getpdb() - sizeof(struct _mep)),
+          g_idhcpcinfo.magic - (char *)&g_idhcpcinfo + offsetof_idhcpcinfo(),
+          &pmep);
+      g_pidhcpcinfo = /* 常駐している場合は常駐部へのポインタ、そうでない場合は非常駐部へのポインタをセットする
+                       */
+          (idhcpcinfo *)((char *)pmep + sizeof(struct _mep) +
+                         sizeof(struct _psp) + offsetof_idhcpcinfo());
+    }
+    initialized = 1;
+  }
+  return kept;
+}
+
+/**
+ * @brief PSP 末尾から idhcpc ワーク先頭までのオフセットを返す
  * @return バイト数
  */
 static int offsetof_idhcpcinfo(void) {
+  extern const char g_keepst;     /* 常駐部先頭アドレス */
+  extern idhcpcinfo g_idhcpcinfo; /* idhcpc ワーク */
+
   return (char *)&g_idhcpcinfo - &g_keepst;
 }
 
 /**
- * @brief udpsockets構造体の初期値を返す
+ * @brief udpsockets 構造体の初期値を返す
  * @return
  */
 static udpsockets create_sockets(void) {
@@ -203,7 +245,7 @@ static udpsockets create_sockets(void) {
 /**
  * @brief インタフェースとハードウェアアドレス情報を取得する
  * @param ifname インタフェース名
- * @param ppiface ifaceポインタ格納域
+ * @param ppiface iface ポインタ格納域
  * @param phwaddr ハードウェアアドレス情報格納域
  * @return エラーコード
  */
@@ -225,31 +267,31 @@ static errno prepare_iface(const char *ifname, iface **ppiface,
 }
 
 /**
- * @brief DHCPDISCOVER発行前の前処理
+ * @brief DHCPDISCOVER 発行前の前処理
  * @param piface インタフェース
- * @param[out] psockets UDPソケット格納域
+ * @param[out] psockets UDP ソケット格納域
  * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
 static errno prepare_discover(iface *piface, udpsockets *psockets,
                               struct sockaddr_in *pinaddr_s) {
-  /* INIT時のネットワークインタフェース設定 */
+  /* INIT 時のネットワークインタフェース設定 */
   iface_when_discover(piface);
 
-  /* 送信用UDPソケット作成 */
+  /* 送信用 UDP ソケット作成 */
   if ((psockets->s = create_udp_socket()) < 0) {
     return ERR_SOCKET;
   }
-  /* 受信用UDPソケット作成 */
+  /* 受信用 UDP ソケット作成 */
   if ((psockets->r = create_udp_socket()) < 0) {
     return ERR_SOCKET;
   }
-  /* DHCPサーバポート（67）に接続 */
+  /* DHCP サーバポート (67) に接続 */
   if (connect2(psockets->s, DHCP_SERVER_PORT, DHCP_LIMITEDBCAST, pinaddr_s) <
       0) {
     return ERR_CONNECT;
   }
-  /* DHCPクライアントポート（68）に接続 */
+  /* DHCPクライアントポート (68) に接続 */
   if (bind2(psockets->r, DHCP_CLIENT_PORT, 0) < 0) {
     return ERR_BIND;
   }
@@ -258,12 +300,12 @@ static errno prepare_discover(iface *piface, udpsockets *psockets,
 }
 
 /**
- * @brief DHCPDISCOVERを発行してDHCPOFFERを受信する
- * @param verbose 非0でバーボーズモード
+ * @brief DHCPDISCOVER を発行して DHCPOFFER を受信する
+ * @param verbose 非 0 でバーボーズモード
  * @param phwaddr ハードウェアアドレス情報
- * @param psockets UDPソケット
- * @param[out] pme 要求IPアドレス格納域
- * @param[out] pserver DHCPサーバIPアドレス格納域
+ * @param psockets UDP ソケット
+ * @param[out] pme 要求 IP アドレス格納域
+ * @param[out] pserver DHCP サーバ IP アドレス格納域
  * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
@@ -280,10 +322,10 @@ static errno discover_dhcp_server(const int verbose,
     return err;
   }
 
-  if ((*pme = dhcp_get_yiaddr(&msg)) == 0) { /* 要求IPアドレス */
+  if ((*pme = dhcp_get_yiaddr(&msg)) == 0) { /* 要求 IP アドレス */
     return ERR_NOYIADDR;
   }
-  if (dhcp_get_serverid(&msg, pserver) == NULL) { /* サーバID */
+  if (dhcp_get_serverid(&msg, pserver) == NULL) { /* サーバ ID */
     return ERR_NOSID;
   }
 
@@ -291,13 +333,12 @@ static errno discover_dhcp_server(const int verbose,
 }
 
 /**
- * @brief DHCPREQUESTを発行してDHCPACKを受信する
- * @param verbose 非0でバーボーズモード
+ * @brief DHCPREQUEST を発行して DHCPACK を受信する
+ * @param verbose 非 0 でバーボーズモード
  * @param phwaddr ハードウェアアドレス情報
- * @param psockets UDPソケット
- * @param me 要求IPアドレス
- * @param server DHCPサーバIPアドレス
- * @param[out] pidhcpcinfo コンフィギュレーション情報格納域
+ * @param psockets UDP ソケット
+ * @param me 要求 IP アドレス
+ * @param server DHCP サーバ IP アドレス
  * @param[out] pdomain ドメイン名格納域
  * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @param[out] piface インタフェース
@@ -305,7 +346,7 @@ static errno discover_dhcp_server(const int verbose,
  */
 static errno request_to_dhcp_server(
     const int verbose, const dhcp_hw_addr *phwaddr, const udpsockets *psockets,
-    const unsigned long me, const unsigned long server, idhcpcinfo *pidhcpcinfo,
+    const unsigned long me, const unsigned long server,
     struct sockaddr_in *pinaddr_s, iface *piface) {
   errno err;
   dhcp_msg msg;
@@ -317,29 +358,28 @@ static errno request_to_dhcp_server(
     return err;
   }
 
-  pidhcpcinfo->dhcpackat = time(NULL); /* DHCPACK 受信日時 */
+  g_pidhcpcinfo->dhcpackat = time(NULL); /* DHCPACK 受信日時 */
 
-  /* 受信結果から要求IPアドレス / サーバIDその他を抜き出す */
-  if ((err = fill_idhcpcinfo(pidhcpcinfo, &subnetmask, domainname, &msg)) !=
-      NOERROR) {
+  /* 受信結果から要求 IP アドレス / サーバIDその他を抜き出す */
+  if ((err = fill_idhcpcinfo(&subnetmask, domainname, &msg)) != NOERROR) {
     return err;
   }
 
-  /* REQUEST時のネットワークインタフェース設定 */
+  /* REQUEST 時のネットワークインタフェース設定 */
   iface_when_request(subnetmask, domainname, piface);
 
   return NOERROR;
 }
 
 /**
- * @brief DHCPメッセージ送信 / 受信処理
- * @param verbose 非0でバーボーズモード
+ * @brief DHCP メッセージ送信 / 受信処理
+ * @param verbose 非 0 でバーボーズモード
  * @param phwaddr ハードウェアアドレス情報
- * @param psockets UDPソケット
- * @param me 要求IPアドレス
- * @param server DHCPサーバIPアドレス
- * @param msgtype_s DHCPメッセージタイプ（DHCPDISCOVER or DHCPREQUEST）
- * @param[out] prmsg DHCPメッセージバッファ格納域
+ * @param psockets UDP ソケット
+ * @param me 要求 IP アドレス
+ * @param server DHCP サーバ IP アドレス
+ * @param msgtype_s DHCP メッセージタイプ (DHCPDISCOVER or DHCPREQUEST)
+ * @param[out] prmsg DHCP メッセージバッファ格納域
  * @param[out] pinaddr_s 送信用ソケット情報格納域
  * @return エラーコード
  */
@@ -348,28 +388,28 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
                               const unsigned long me,
                               const unsigned long server, const int msgtype_s,
                               dhcp_msg *prmsg, struct sockaddr_in *pinaddr_s) {
-  dhcp_msg smsg; /* DHCPメッセージバッファ（送信用） */
+  dhcp_msg smsg; /* DHCP メッセージバッファ (送信用) */
   struct sockaddr_in inaddr_r;
   unsigned char msgtype_r; /* 受信データのメッセージタイプ */
   int wait = 4;            /* タイムアウト秒数 */
   int timeout = 0;         /* タイムアウトフラグ */
   int i;                   /* ループカウンタ */
 
-  /* 最大4回再送（計5回送信） */
+  /* 最大4回再送 (計5回送信) */
   for (i = 0; i < 5; i++) {
-    unsigned long xid;   /* トランザクションID */
-    unsigned short secs; /* 起動からの経過時間（秒） */
+    unsigned long xid;   /* トランザクション ID */
+    unsigned short secs; /* 起動からの経過時間 (秒) */
     int endat;           /* タイムアウト判定用 */
 
     if (verbose) {
-      if (i > 0) printf(" リトライします（%d回目）...\n", i);
+      if (i > 0) printf(" リトライします (%d 回目) ...\n", i);
       fflush(stdout);
     }
 
     /* メッセージ送信処理 */
     xid = random(); /* トランザクションID設定 */
     secs = (unsigned short)difftime(
-        time(NULL), g_idhcpcinfo.startat); /* 起動からの経過時間 */
+        time(NULL), g_pidhcpcinfo->startat); /* 起動からの経過時間 */
     switch (msgtype_s) {
       case DHCPDISCOVER:
         dhcp_make_dhcpdiscover(phwaddr, xid, secs, &smsg);
@@ -382,7 +422,7 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
     }
     if (verbose) {
       dhcp_print(&smsg);
-      printf("DHCPサーバポート（67）へ送信中 ...\n");
+      printf("DHCP サーバポート (67) へ送信中 ...\n");
       fflush(stdout);
     }
     sendto(psockets->s, (char *)&smsg, sizeof(smsg), 0, (char *)pinaddr_s,
@@ -392,14 +432,14 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
     /* メッセージ受信処理 */
     if (verbose) {
       printf(
-          "DHCPクライアントポート（68）から受信中. "
-          "約%d秒後にタイムアウトします ...",
+          "DHCP クライアントポート (68) から受信中. "
+          "約 %d 秒後にタイムアウトします ...",
           wait);
       fflush(stdout);
     }
 
     /* タイムアウトリミット設定 */
-    /* 4, 8, 16, 32, 64 ± 1秒くらい */
+    /* 4, 8, 16, 32, 64 ± 1 秒くらい */
     endat = ontime() + (wait - 1) * 100 + random() % 200;
     timeout = 0;
     while (1) {
@@ -445,37 +485,36 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
 
 /**
  * @brief コンフィギュレーション情報をセーブする
- * @param[out] pidhcpcinfo コンフィギュレーション情報格納域
  * @param[out] pmask サブネットマスク格納域
  * @param[out] pdomain ドメイン名格納域
- * @param[out] pmsg DHCPOFFERまたはDHCPACKで受信したDHCPメッセージ
+ * @param[out] pmsg DHCPOFFER または DHCPACK で受信した DHCP メッセージ
  * @return エラーコード
  */
-static errno fill_idhcpcinfo(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
-                             char *pdomain, dhcp_msg *pmsg) {
-  if ((pidhcpcinfo->me = dhcp_get_yiaddr(pmsg)) == 0) { /* 要求IPアドレス */
+static errno fill_idhcpcinfo(unsigned long *pmask, char *pdomain,
+                             dhcp_msg *pmsg) {
+  if ((g_pidhcpcinfo->me = dhcp_get_yiaddr(pmsg)) == 0) { /* 要求 IP アドレス */
     return ERR_NOYIADDR;
   }
-  if (dhcp_get_serverid(pmsg, &pidhcpcinfo->server) == NULL) { /* サーバID */
+  if (dhcp_get_serverid(pmsg, &g_pidhcpcinfo->server) == NULL) { /* サーバ ID */
     return ERR_NOSID;
   }
-  pidhcpcinfo->gateway = 0; /* デフォルトゲートウェイ */
-  dhcp_get_defroute(pmsg, &pidhcpcinfo->gateway);
-  dhcp_get_dns(pmsg, pidhcpcinfo->dns); /* ドメインサーバ（配列） */
-  if (dhcp_get_leasetime(pmsg, &pidhcpcinfo->leasetime) ==
+  g_pidhcpcinfo->gateway = 0; /* デフォルトゲートウェイ */
+  dhcp_get_defroute(pmsg, &g_pidhcpcinfo->gateway);
+  dhcp_get_dns(pmsg, g_pidhcpcinfo->dns); /* ドメインサーバ (配列) */
+  if (dhcp_get_leasetime(pmsg, &g_pidhcpcinfo->leasetime) ==
       NULL) { /* リース期間 */
     /* リース期間が渡されなかった！？ */
     return ERR_NOLEASETIME;
   }
-  pidhcpcinfo->renewtime = 0; /* 更新時間 */
-  dhcp_get_renewtime(pmsg, &pidhcpcinfo->renewtime);
-  if (pidhcpcinfo->renewtime == 0) {
-    pidhcpcinfo->renewtime = pidhcpcinfo->leasetime / 2;
+  g_pidhcpcinfo->renewtime = 0; /* 更新時間 */
+  dhcp_get_renewtime(pmsg, &g_pidhcpcinfo->renewtime);
+  if (g_pidhcpcinfo->renewtime == 0) {
+    g_pidhcpcinfo->renewtime = g_pidhcpcinfo->leasetime / 2;
   }
-  pidhcpcinfo->rebindtime = 0; /* 再結合時間 */
-  dhcp_get_rebindtime(pmsg, &pidhcpcinfo->rebindtime);
-  if (pidhcpcinfo->rebindtime == 0) {
-    pidhcpcinfo->rebindtime = pidhcpcinfo->leasetime * 857 / 1000;
+  g_pidhcpcinfo->rebindtime = 0; /* 再結合時間 */
+  dhcp_get_rebindtime(pmsg, &g_pidhcpcinfo->rebindtime);
+  if (g_pidhcpcinfo->rebindtime == 0) {
+    g_pidhcpcinfo->rebindtime = g_pidhcpcinfo->leasetime * 857 / 1000;
   }
   *pmask = 0; /* サブネットマスク */
   dhcp_get_subnetmask(pmsg, pmask);
@@ -485,34 +524,34 @@ static errno fill_idhcpcinfo(idhcpcinfo *pidhcpcinfo, unsigned long *pmask,
 }
 
 /**
- * @brief DHCPRELEASEを発行してネットワークインタフェースを初期化する
- * @param verbose 非0でバーボーズモード
+ * @brief DHCPRELEASE を発行してネットワークインタフェースを初期化する
+ * @param verbose 非 0 でバーボーズモード
  * @param piface インタフェース
  * @param phwaddr ハードウェアアドレス情報
- * @param[out] psockets UDPソケット
+ * @param[out] psockets UDP ソケット
  * @return エラーコード
  */
 static errno release_config(const int verbose, iface *piface,
                             dhcp_hw_addr *phwaddr, udpsockets *psockets) {
-  dhcp_msg msg; /* DHCPメッセージバッファ */
+  dhcp_msg msg; /* DHCP メッセージバッファ */
   struct sockaddr_in inaddr_s;
 
-  /* 送信用UDPソケット作成 */
+  /* 送信用 UDP ソケット作成 */
   if ((psockets->s = create_udp_socket()) < 0) {
     return ERR_SOCKET;
   }
-  /* DHCPサーバポート（67）に接続 */
-  if (connect2(psockets->s, DHCP_SERVER_PORT, g_idhcpcinfo.server, &inaddr_s) <
-      0) {
+  /* DHCP サーバポート (67) に接続 */
+  if (connect2(psockets->s, DHCP_SERVER_PORT, g_pidhcpcinfo->server,
+               &inaddr_s) < 0) {
     return ERR_CONNECT;
   }
 
-  /* DHCPRELEASEメッセージ送信処理 */
-  dhcp_make_dhcprelease(phwaddr, g_idhcpcinfo.me, g_idhcpcinfo.server, random(),
-                        &msg);
+  /* DHCPRELEASE メッセージ送信処理 */
+  dhcp_make_dhcprelease(phwaddr, g_pidhcpcinfo->me, g_pidhcpcinfo->server,
+                        random(), &msg);
   if (verbose) {
     dhcp_print(&msg);
-    printf("DHCPサーバポート（67）へ送信中 ...\n");
+    printf("DHCP サーバポート (67) へ送信中 ...\n");
     fflush(stdout);
   }
   sendto(psockets->s, (char *)&msg, sizeof(msg), 0, (char *)&inaddr_s,
@@ -525,7 +564,7 @@ static errno release_config(const int verbose, iface *piface,
 
 /**
  * @brief オープン済みのソケットをすべてクローズする
- * @param[out] psockets UDPソケット
+ * @param[out] psockets UDP ソケット
  */
 static void close_sockets(udpsockets *psockets) {
   if (psockets->s != -1) {
@@ -539,7 +578,7 @@ static void close_sockets(udpsockets *psockets) {
 }
 
 /**
- * @brief DHCPDISCOVER時のネットワークインタフェース設定
+ * @brief DHCPDISCOVER 時のネットワークインタフェース設定
  * @param piface インタフェース
  */
 static void iface_when_discover(iface *piface) {
@@ -550,20 +589,20 @@ static void iface_when_discover(iface *piface) {
 }
 
 /**
- * @brief DHCPREQUEST時のネットワークインタフェース設定
+ * @brief DHCPREQUEST 時のネットワークインタフェース設定
  * @param subnetmask サブネットマスク
  * @param domainname ドメイン名
  * @param[out] piface インタフェース
  */
 static void iface_when_request(const unsigned long subnetmask,
                                const char *domainname, iface *piface) {
-  piface->my_ip_addr = g_idhcpcinfo.me;
+  piface->my_ip_addr = g_pidhcpcinfo->me;
   piface->net_mask = subnetmask;
   piface->broad_cast = (piface->my_ip_addr & subnetmask) | ~subnetmask;
   piface->flag |= IFACE_UP;
   link_new_iface(piface);
   {
-    unsigned long *p = g_idhcpcinfo.dns, addr;
+    unsigned long *p = g_pidhcpcinfo->dns, addr;
 
     while ((addr = *p++)) {
       dns_add((long)addr);
@@ -572,28 +611,28 @@ static void iface_when_request(const unsigned long subnetmask,
   if (strcmp(domainname, "")) {
     set_domain_name((char *)domainname);
   }
-  if (g_idhcpcinfo.gateway) {
+  if (g_pidhcpcinfo->gateway) {
     route *def;
     rt_top(&def);
-    def->gateway = (long)g_idhcpcinfo.gateway;
+    def->gateway = (long)g_pidhcpcinfo->gateway;
   }
   /* delaysec(150);*/
 }
 
 /**
- * @brief DHCPRELEASE発行後のネットワークインタフェースの辻褄合わせ
+ * @brief DHCPRELEASE 発行後のネットワークインタフェースの辻褄合わせ
  * @param ifname インタフェース名
  */
 static void iface_when_release(iface *piface) {
   {
-    unsigned long *p = g_idhcpcinfo.dns, addr;
+    unsigned long *p = g_pidhcpcinfo->dns, addr;
 
     while ((addr = *p++)) {
       dns_drop((long)addr);
     }
   }
   set_domain_name("");
-  if (g_idhcpcinfo.gateway) {
+  if (g_pidhcpcinfo->gateway) {
     route *def;
     rt_top(&def);
     def->gateway = 0;
@@ -622,8 +661,8 @@ static void fill_dhcp_hw_addr(const iface *piface, dhcp_hw_addr *phwaddr) {
 }
 
 /**
- * @brief 1/100秒単位でウェイトをかます
- * @param tm ウェイトカウント（）
+ * @brief 1/100 秒単位でウェイトをかます
+ * @param tm ウェイトカウント ()
  */
 static void delaysec(const int tm) { usleep(tm * 10000); }
 

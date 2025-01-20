@@ -5,26 +5,26 @@
 #include "idhcpc.h"
 
 static char g_title[] =
-    "idhcpc - インチキDHCPクライアント - version 0.12.0 "
+    "idhcpc - インチキ DHCP クライアント - version 0.12.0 "
     "https://github.com/68fpjc\n";
 
 /**
- * @brief errnoに対応したエラーメッセージ
+ * @brief errno に対応したエラーメッセージ
  */
 static char *g_errmes[] = {
     /* NOERROR         */ "",
     /* ERR_NODEVICE    */ "ネットワークデバイスがインストールされていません.",
     /* ERR_NOIFACE     */ "インタフェースが見つかりません.",
     /* ERR_SOCKET      */ "ソケットを作成できません.",
-    /* ERR_CONNECT     */ "DHCPサーバポートへ接続できません.",
-    /* ERR_BIND        */ "DHCPクライアントポートへ接続できません.",
+    /* ERR_CONNECT     */ "DHCP サーバポートへ接続できません.",
+    /* ERR_BIND        */ "DHCP クライアントポートへ接続できません.",
     /* ERR_TIMEOUT     */ "タイムアウトです.",
-    /* ERR_NAK         */ "DHCPサーバから要求を拒否されました.",
-    /* ERR_NOYIADDR    */ "IPアドレスを取得できません.",
+    /* ERR_NAK         */ "DHCP サーバから要求を拒否されました.",
+    /* ERR_NOYIADDR    */ "IP アドレスを取得できません.",
     /* ERR_NOLEASETIME */ "リース期間を取得できません.",
-    /* ERR_NOSID       */ "DHCPサーバのIPアドレスを取得できません.",
-    /* ERR_NOTKEPT     */ "idpcpcが常駐していません.",
-    /* ERR_ALREADYKEPT */ "idpcpcはすでに常駐しています.",
+    /* ERR_NOSID       */ "DHCP サーバの IP アドレスを取得できません.",
+    /* ERR_NOTKEPT     */ "idpcpc が常駐していません.",
+    /* ERR_ALREADYKEPT */ "idpcpc はすでに常駐しています.",
 };
 
 static char g_usgmes[] =
@@ -38,7 +38,7 @@ static char g_keepmes[] = "コンフィギュレーションが完了しまし�
 
 static char g_removemes[] = "コンフィギュレーション情報を破棄しました.\n";
 
-static void print_lease_time(const char *);
+static errno print_lease_time(const char *, const int);
 static void put_error(const char *, const int);
 static void printf_with_iface(const char *, const char *);
 
@@ -52,8 +52,6 @@ int main(int argc, char *argv[]) {
   errno err;
   int rflag = 0, lflag = 0;
   int vflag = 0;
-  int keepflag;
-  idhcpcinfo *pidhcpcinfo;
   const char *ifname_default = "en0";
   const char *ifname = ifname_default;
   int i;
@@ -87,43 +85,35 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    if (argerr || (rflag && lflag)) { /* -rと-pは同時指定できない */
+    if (argerr || (rflag && lflag)) { /* -r と -p は同時指定できない */
       printf(g_usgmes);
       return EXIT_FAILURE;
     }
   }
 
-  /* ここで常駐チェックしておく */
-  keepflag = keepchk(ifname, &pidhcpcinfo);
-  if (keepflag) {
-    /* 常駐部に保存してあった情報をグローバルワークへ転送しておく */
-    memcpy(&g_idhcpcinfo, pidhcpcinfo, sizeof(idhcpcinfo));
-  }
-
   if (rflag) {
     /* 常駐解除処理 */
-    if ((err = try_to_release(vflag, keepflag)) != NOERROR) {
+    if ((err = try_to_release(vflag, ifname)) != NOERROR) {
       put_error(ifname, err);
       return EXIT_FAILURE;
     } else {
-      freepr(pidhcpcinfo);
+      freepr();
       printf_with_iface(ifname, g_removemes);
     }
   } else if (lflag) {
     /* 残りリース期間表示 */
-    if (!keepflag) {
-      put_error(ifname, ERR_NOTKEPT);
+    if ((err = print_lease_time(ifname, 0)) != NOERROR) {
+      put_error(ifname, err);
       return EXIT_FAILURE;
     }
-    print_lease_time(ifname);
   } else {
     /* 常駐処理 */
-    if ((err = try_to_keep(vflag, keepflag)) != NOERROR) {
+    if ((err = try_to_keep(vflag, ifname)) != NOERROR) {
       put_error(ifname, err);
       return EXIT_FAILURE;
     } else {
       printf_with_iface(ifname, g_keepmes);
-      print_lease_time(ifname);
+      print_lease_time(ifname, 1);
       keeppr_and_exit(); /* 常駐終了 */
     }
   }
@@ -132,22 +122,28 @@ int main(int argc, char *argv[]) {
 }
 
 /**
- * @brief 残りリース期間表示処理メイン
+ * @brief 残りリース期間を表示する
  * @param ifname インタフェース名
+ * @param force 非 0 で強制的にリース期間を取得する (常駐時専用)
+ * @return エラーコード
  */
-static void print_lease_time(const char *ifname) {
+static errno print_lease_time(const char *ifname, const int force) {
+  errno err;
   int rest, rest_h, rest_m, rest_s;
 
-  if ((rest = get_remaining()) < 0) {
-    printf("%s: リース期間は無期限です.\n", ifname);
-  } else {
-    rest_s = rest % 60;
-    rest /= 60;
-    rest_m = rest % 60;
-    rest_h = rest / 60;
-    printf("%s: 残りリース期間は %d 時間 %02d 分 %02d 秒です.\n", ifname,
-           rest_h, rest_m, rest_s);
+  if ((err = get_remaining(ifname, force, &rest)) == NOERROR) {
+    if (rest == 0xffffffff) {
+      printf("%s: リース期間は無期限です.\n", ifname);
+    } else {
+      rest_s = rest % 60;
+      rest /= 60;
+      rest_m = rest % 60;
+      rest_h = rest / 60;
+      printf("%s: 残りリース期間は %d 時間 %02d 分 %02d 秒です.\n", ifname,
+             rest_h, rest_m, rest_s);
+    }
   }
+  return err;
 }
 
 /**
@@ -166,5 +162,5 @@ static void put_error(const char *ifname, const int errno) {
  * @param s フォーマット
  */
 static void printf_with_iface(const char *ifname, const char *s) {
-  printf("%s: %s", g_idhcpcinfo.ifname, s);
+  printf("%s: %s", ifname, s);
 }

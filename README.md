@@ -14,7 +14,7 @@ idhcpc.x を、環境変数 `path` の指すディレクトリへコピーして
 
 ```
 @>idhcpc --help
-idhcpc - インチキDHCPクライアント - version 0.xx.x https://github.com/68fpjc
+idhcpc - インチキ DHCP クライアント - version 0.xx.x https://github.com/68fpjc
 Usage: idhcpc [options] [インタフェース名]
 Options:
         -r, --release           コンフィギュレーション情報を破棄する
@@ -24,7 +24,7 @@ Options:
 
 Neptune-X / Nereid 等の LAN ボードが正しく動作している必要があります。
 
-また、あらかじめ TCP/IP ドライバ（ [inetd.x](http://retropc.net/x68000/software/internet/kg/tcppacka/) / [hinetd.x](http://retropc.net/x68000/software/internet/tcpip/hinetd/) / [xip.x](http://retropc.net/x68000/software/internet/tcpip/xip/) 等）を常駐させておいてください。
+また、あらかじめ TCP/IP ドライバ ([inetd.x](http://retropc.net/x68000/software/internet/kg/tcppacka/) / [hinetd.x](http://retropc.net/x68000/software/internet/tcpip/hinetd/) / [xip.x](http://retropc.net/x68000/software/internet/tcpip/xip/) 等) を常駐させておいてください。
 
 ```
 idhcpc
@@ -56,7 +56,7 @@ idhcpc -v
 idhcpc -v -r
 ```
 
-常駐時 / 常駐解除時に DHCP サーバとの通信内容を表示します（気休め用）。
+常駐時 / 常駐解除時に DHCP サーバとの通信内容を表示します (気休め用) 。
 
 ### 例
 
@@ -67,7 +67,7 @@ X680x0 IP driver xip.x β5 Modified by K.Shirakata.
 @>ifconfig lp0 up       ★ これは idhcpc とは関係ない
 
 @>idhcpc                ★ idhcpc の常駐
-idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+idhcpc - インチキ DHCP クライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
 en0: コンフィギュレーションが完了しました.
 en0: 残りリース期間は 72 時間 0 分 0 秒 です.
 
@@ -85,14 +85,14 @@ domain name:            igarashi.net
         :
 
 @>idhcpc -l             ★ 残りリース期間の表示
-idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+idhcpc - インチキ DHCP クライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
 en0: 残りリース期間は 70 時間 31 分 40 秒 です.
 
         :
         :
 
 @>idhcpc -r             ★ idhcpc の常駐解除
-idhcpc - インチキDHCPクライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
+idhcpc - インチキ DHCP クライアント - version 0.xx.x  https://github.com/68fpjc/idhcpc
 en0: コンフィギュレーション情報を破棄しました.
 ```
 
@@ -110,7 +110,7 @@ en0: コンフィギュレーション情報を破棄しました.
 make
 ```
 
-事前にヘッダファイルとライブラリファイルを下記のように配置してください（xdev68k 標準の XC 環境ではなく、LIBC を使用します）。
+事前にヘッダファイルとライブラリファイルを下記のように配置してください (xdev68k 標準の XC 環境ではなく、LIBC を使用します) 。
 
 -   [LIBC 1.1.32A ぱっち ＤＯＮ版 その４](http://retropc.net/x68000/software/develop/lib/libcdon/) → 下記 `libc` ディレクトリに配置
 -   [TCPPACKB](http://retropc.net/x68000/software/internet/kg/tcppackb/) → 下記 `misc` ディレクトリに配置
@@ -139,7 +139,7 @@ make -f makefile.x68
 
 xdev68k の場合と同様、LIBC と TCPPACKB が必要です。事前にヘッダファイルとライブラリファイルをそれぞれ、環境変数 `include` および `lib` の指すディレクトリに配置してください。
 
-エミュレータ環境に下記をインストールし、ビルドが（とりあえず）通ることを確認しています。
+エミュレータ環境に下記をインストールし、ビルドが (とりあえず) 通ることを確認しています。
 
 -   [GNU Make](https://github.com/kg68k/gnu-make-human68k)
 -   [真里子版 GCC](http://retropc.net/x68000/software/develop/c/gcc_mariko/)
@@ -155,8 +155,8 @@ idhcpc のビルド済みバイナリは xdev68k でビルドしたものです�
 
 ### 参考文献
 
--   Network Working Group Request For Comments: 2131（rfc2131）
--   Network Working Group Request For Comments: 2132（rfc2132）
+-   Network Working Group Request For Comments: 2131 (rfc2131)
+-   Network Working Group Request For Comments: 2132 (rfc2132)
 
 ## 連絡先
 
