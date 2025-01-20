@@ -124,6 +124,8 @@ errno try_to_keep(const int verbose, const int keepflag) {
       unsigned long me;
       unsigned long server;
 
+      g_idhcpcinfo.startat = time(NULL); /* 起動日時 */
+
       (!0) &&
           ((err = prepare_discover(piface, &sockets, &inaddr_s)) == NOERROR) &&
           ((err = discover_dhcp_server(verbose, &hwaddr, &sockets, &me, &server,
@@ -172,16 +174,16 @@ errno try_to_release(const int verbose, const int keepflag) {
  * @brief 残りリース期間表示処理メイン
  * @param ifname インタフェース名
  * @param leasetime （全体）リース期間（秒）
- * @param startat IPアドレス設定時のマシン起動時間（秒）
+ * @param dhcpackat DHCPACK 受信日時
  */
 void print_lease_time(const char *ifname, const unsigned long leasetime,
-                      const unsigned long startat) {
+                      const time_t dhcpackat) {
   int rest, rest_h, rest_m, rest_s;
 
   if (leasetime == 0xffffffff) {
     printf("%s: リース期間は無期限です.\n", ifname);
   } else {
-    rest = (int)leasetime - (ontime() / 100 - (int)startat);
+    rest = (int)leasetime - difftime(time(NULL), dhcpackat);
     rest_s = rest % 60;
     rest /= 60;
     rest_m = rest % 60;
@@ -329,14 +331,13 @@ static errno request_to_dhcp_server(
     return err;
   }
 
+  pidhcpcinfo->dhcpackat = time(NULL); /* DHCPACK 受信日時 */
+
   /* 受信結果から要求IPアドレス / サーバIDその他を抜き出す */
   if ((err = fill_idhcpcinfo(pidhcpcinfo, &subnetmask, domainname, &msg)) !=
       NOERROR) {
     return err;
   }
-
-  /* この時点でのマシン起動時間を覚えておく */
-  g_idhcpcinfo.startat = (unsigned long)(ontime() / 100);
 
   /* REQUEST時のネットワークインタフェース設定 */
   iface_when_request(subnetmask, domainname, piface);
@@ -381,7 +382,8 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
 
     /* メッセージ送信処理 */
     xid = random(); /* トランザクションID設定 */
-    secs = (unsigned short)(ontime() / 100);
+    secs = (unsigned short)difftime(
+        time(NULL), g_idhcpcinfo.startat); /* 起動からの経過時間 */
     switch (msgtype_s) {
       case DHCPDISCOVER:
         dhcp_make_dhcpdiscover(phwaddr, xid, secs, &smsg);

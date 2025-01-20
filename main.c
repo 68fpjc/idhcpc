@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
     } else {
       printf_with_iface(g_keepmes);
       print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
-                       g_idhcpcinfo.startat);
+                       g_idhcpcinfo.dhcpackat);
       keeppr_and_exit(); /* 常駐終了 */
     }
   }
@@ -145,7 +145,7 @@ static errno try_to_print(const int keepflag) {
       break;
     }
     print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
-                     g_idhcpcinfo.startat);
+                     g_idhcpcinfo.dhcpackat);
     errno = NOERROR;
     break;
   }

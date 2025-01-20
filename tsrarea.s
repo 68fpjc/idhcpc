@@ -5,7 +5,8 @@
 _g_keepst::
 
 _g_idhcpcinfo::
-	.ds.l	1			; IPアドレス設定時のマシン起動時間（秒）
+	.ds.l	1			; DHCP クライアント起動日時
+	.ds.l	1			; DHCPACK 受信日時
 	.ds.l	1			; リース期間（秒）
 	.ds.l	1			; 更新開始タイマ（秒）
 	.ds.l	1			; 再結合開始タイマ（秒）

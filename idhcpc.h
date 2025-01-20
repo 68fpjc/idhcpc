@@ -1,10 +1,13 @@
 #ifndef IDHCPC_H
 #define IDHCPC_HDHCP_H
 
+#include <time.h>
+
 /* idhcpcワーク */
 /* tsrarea.sとサイズを合わせること */
 typedef struct {
-  unsigned long startat; /* IPアドレス設定時のマシン起動時間（秒） */
+  time_t startat;                 /* DHCP クライアント起動日時 */
+  time_t dhcpackat;               /* DHCPACK 受信日時 */
   unsigned long leasetime;        /* リース期間（秒） */
   unsigned long renewtime;        /* 更新開始タイマ（秒） */
   unsigned long rebindtime;       /* 再結合開始タイマ（秒） */
@@ -42,6 +45,6 @@ int ontime(void);
 
 errno try_to_keep(const int, const int);
 errno try_to_release(const int, const int);
-void print_lease_time(const char *, const unsigned long, const unsigned long);
+void print_lease_time(const char *, const unsigned long, const time_t);
 
 #endif /* IDHCPC_H */
