@@ -39,8 +39,8 @@ static char g_keepmes[] = "コンフィギュレーションが完了しまし�
 static char g_removemes[] = "コンフィギュレーション情報を破棄しました.\n";
 
 static void print_lease_time(const char *);
-static void put_error(const int);
-static void printf_with_iface(const char *);
+static void put_error(const char *, const int);
+static void printf_with_iface(const char *, const char *);
 
 /**
  * @brief メイン処理
@@ -103,26 +103,26 @@ int main(int argc, char *argv[]) {
   if (rflag) {
     /* 常駐解除処理 */
     if ((err = try_to_release(vflag, keepflag)) != NOERROR) {
-      put_error(err);
+      put_error(ifname, err);
       return EXIT_FAILURE;
     } else {
       freepr(pidhcpcinfo);
-      printf_with_iface(g_removemes);
+      printf_with_iface(ifname, g_removemes);
     }
   } else if (lflag) {
     /* 残りリース期間表示 */
     if (!keepflag) {
-      put_error(ERR_NOTKEPT);
+      put_error(ifname, ERR_NOTKEPT);
       return EXIT_FAILURE;
     }
     print_lease_time(ifname);
   } else {
     /* 常駐処理 */
     if ((err = try_to_keep(vflag, keepflag)) != NOERROR) {
-      put_error(err);
+      put_error(ifname, err);
       return EXIT_FAILURE;
     } else {
-      printf_with_iface(g_keepmes);
+      printf_with_iface(ifname, g_keepmes);
       print_lease_time(ifname);
       keeppr_and_exit(); /* 常駐終了 */
     }
@@ -145,24 +145,26 @@ static void print_lease_time(const char *ifname) {
     rest /= 60;
     rest_m = rest % 60;
     rest_h = rest / 60;
-    printf("%s: 残りリース期間は %d 時間 %02d 分 %02d 秒です.\n", ifname, rest_h,
-           rest_m, rest_s);
+    printf("%s: 残りリース期間は %d 時間 %02d 分 %02d 秒です.\n", ifname,
+           rest_h, rest_m, rest_s);
   }
 }
 
 /**
  * @brief エラーメッセージ表示
+ * @param ifname インタフェース名
  * @param errno エラーコード
  */
-static void put_error(const int errno) {
-  printf("%s: %s\n", g_idhcpcinfo.ifname, g_errmes[errno]);
+static void put_error(const char *ifname, const int errno) {
+  printf("%s: %s\n", ifname, g_errmes[errno]);
   fflush(stdout);
 }
 
 /**
  * @brief インタフェース名付きprintf
+ * @param ifname インタフェース名
  * @param s フォーマット
  */
-static void printf_with_iface(const char *s) {
+static void printf_with_iface(const char *ifname, const char *s) {
   printf("%s: %s", g_idhcpcinfo.ifname, s);
 }
