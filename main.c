@@ -38,7 +38,7 @@ static char g_keepmes[] = "コンフィギュレーションが完了しまし�
 
 static char g_removemes[] = "コンフィギュレーション情報を破棄しました.\n";
 
-static errno try_to_print(const int);
+static void print_lease_time(const char *);
 static void put_error(const int);
 static void printf_with_iface(const char *);
 
@@ -110,11 +110,12 @@ int main(int argc, char *argv[]) {
       printf_with_iface(g_removemes);
     }
   } else if (lflag) {
-    /* リース期間表示 */
-    if ((err = try_to_print(keepflag)) != NOERROR) {
-      put_error(err);
+    /* 残りリース期間表示 */
+    if (!keepflag) {
+      put_error(ERR_NOTKEPT);
       return EXIT_FAILURE;
     }
+    print_lease_time(ifname);
   } else {
     /* 常駐処理 */
     if ((err = try_to_keep(vflag, keepflag)) != NOERROR) {
@@ -122,8 +123,7 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     } else {
       printf_with_iface(g_keepmes);
-      print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
-                       g_idhcpcinfo.dhcpackat);
+      print_lease_time(ifname);
       keeppr_and_exit(); /* 常駐終了 */
     }
   }
@@ -132,25 +132,22 @@ int main(int argc, char *argv[]) {
 }
 
 /**
- * @brief 残りリース期間表示処理
- * @param keepflag 常駐判定フラグ
- * @return エラーコード
+ * @brief 残りリース期間表示処理メイン
+ * @param ifname インタフェース名
  */
-static errno try_to_print(const int keepflag) {
-  int errno;
+static void print_lease_time(const char *ifname) {
+  int rest, rest_h, rest_m, rest_s;
 
-  while (1) {
-    if (!keepflag) {
-      errno = ERR_NOTKEPT;
-      break;
-    }
-    print_lease_time(g_idhcpcinfo.ifname, g_idhcpcinfo.leasetime,
-                     g_idhcpcinfo.dhcpackat);
-    errno = NOERROR;
-    break;
+  if ((rest = get_remaining()) < 0) {
+    printf("%s: リース期間は無期限です.\n", ifname);
+  } else {
+    rest_s = rest % 60;
+    rest /= 60;
+    rest_m = rest % 60;
+    rest_h = rest / 60;
+    printf("%s: 残りリース期間は %d 時間 %02d 分 %02d 秒です.\n", ifname, rest_h,
+           rest_m, rest_s);
   }
-
-  return errno;
 }
 
 /**

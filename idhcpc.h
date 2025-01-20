@@ -45,6 +45,6 @@ int ontime(void);
 
 errno try_to_keep(const int, const int);
 errno try_to_release(const int, const int);
-void print_lease_time(const char *, const unsigned long, const time_t);
+int get_remaining(void);
 
 #endif /* IDHCPC_H */

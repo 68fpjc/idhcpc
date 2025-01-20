@@ -171,28 +171,14 @@ errno try_to_release(const int verbose, const int keepflag) {
 }
 
 /**
- * @brief 残りリース期間表示処理メイン
- * @param ifname インタフェース名
- * @param leasetime （全体）リース期間（秒）
- * @param dhcpackat DHCPACK 受信日時
+ * @brief 残りリース期間を返す
+ * @return 残りリース期間. 無期限の場合は -1
  */
-void print_lease_time(const char *ifname, const unsigned long leasetime,
-                      const time_t dhcpackat) {
-  int rest, rest_h, rest_m, rest_s;
-
-  if (leasetime == 0xffffffff) {
-    printf("%s: リース期間は無期限です.\n", ifname);
-  } else {
-    rest = (int)leasetime - difftime(time(NULL), dhcpackat);
-    rest_s = rest % 60;
-    rest /= 60;
-    rest_m = rest % 60;
-    rest_h = rest / 60;
-    printf("%s: 残りリース期間は", ifname);
-    if (rest_h) printf(" %d 時間", rest_h);
-    if (rest_m) printf(" %d 分", rest_m);
-    printf(" %d 秒 です.\n", rest_s);
-  }
+int get_remaining(void) {
+  return g_idhcpcinfo.leasetime == 0xffffffff
+             ? -1
+             : (int)g_idhcpcinfo.leasetime -
+                   (int)difftime(time(NULL), g_idhcpcinfo.dhcpackat);
 }
 
 /**
