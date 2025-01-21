@@ -37,7 +37,6 @@ typedef struct {
 
 void keeppr_and_exit(void);
 int freepr(const char *);
-int ontime(void);
 
 errno try_to_keep(const int, const char *);
 errno try_to_release(const int, const char *);

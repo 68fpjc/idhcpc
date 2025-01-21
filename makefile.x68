@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -O2 -Wall
 AS = HAS060
 LD = $(CC)
-LDLIBS = -lnetwork -ldos -liocs -lgcc
+LDLIBS = -lnetwork -ldos -lgcc
 
 export GCC_AS = $(AS)
 export GCC_LINK = hlk

@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/dos.h>
-#include <sys/iocs.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -47,8 +46,7 @@ static void iface_when_discover(iface *);
 static void iface_when_request(const unsigned long, const char *, iface *);
 static void iface_when_release(iface *);
 static void fill_dhcp_hw_addr(const iface *, dhcp_hw_addr *);
-static void delaysec(const int);
-static void put_progress(void);
+static void msleep(const int);
 
 idhcpcinfo *g_pidhcpcinfo; /* initialize() で初期化される */
 
@@ -74,12 +72,6 @@ int freepr(const char *ifname) {
              ? _dos_mfree((void *)((int)g_pidhcpcinfo - sizeof(struct _psp)))
              : -1;
 }
-
-/**
- * @brief IOCS _ONTIME をコールする
- * @return IOCS _ONTIME の戻り値
- */
-int ontime(void) { return _iocs_ontime(); }
 
 /**
  * @brief 常駐処理
@@ -424,34 +416,32 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
   dhcp_msg smsg; /* DHCP メッセージバッファ (送信用) */
   struct sockaddr_in inaddr_r;
   unsigned char msgtype_r; /* 受信データのメッセージタイプ */
+  unsigned long xid;       /* トランザクション ID */
   int wait = 4;            /* タイムアウト秒数 */
-  int timeout = 0;         /* タイムアウトフラグ */
+  int timeout = 1;         /* タイムアウトフラグ */
   int i;                   /* ループカウンタ */
 
   /* 最大4回再送 (計5回送信) */
   for (i = 0; i < 5; i++) {
-    unsigned long xid;   /* トランザクション ID */
-    unsigned short secs; /* 起動からの経過時間 (秒) */
-    int endat;           /* タイムアウト判定用 */
-
     if (verbose) {
-      if (i > 0) printf(" リトライします (%d 回目) ...\n", i);
+      if (i > 0) printf("リトライします (%d 回目) ...\n", i);
       fflush(stdout);
     }
+    {                       /* メッセージ送信処理 */
+      unsigned short secs = /* 起動からの経過時間 (秒) */
+          (unsigned short)difftime(time(NULL), g_pidhcpcinfo->startat);
 
-    /* メッセージ送信処理 */
-    xid = random(); /* トランザクションID設定 */
-    secs = (unsigned short)difftime(
-        time(NULL), g_pidhcpcinfo->startat); /* 起動からの経過時間 */
-    switch (msgtype_s) {
-      case DHCPDISCOVER:
-        dhcp_make_dhcpdiscover(phwaddr, xid, secs, &smsg);
-        break;
-      case DHCPREQUEST:
-        dhcp_make_dhcprequest(phwaddr, me, server, xid, secs, &smsg);
-        break;
-      default:
-        break;
+      xid = random(); /* トランザクション ID 設定 */
+      switch (msgtype_s) {
+        case DHCPDISCOVER:
+          dhcp_make_dhcpdiscover(phwaddr, xid, secs, &smsg);
+          break;
+        case DHCPREQUEST:
+          dhcp_make_dhcprequest(phwaddr, me, server, xid, secs, &smsg);
+          break;
+        default:
+          break;
+      }
     }
     if (verbose) {
       dhcp_print(&smsg);
@@ -470,41 +460,51 @@ static errno send_and_receive(const int verbose, const dhcp_hw_addr *phwaddr,
           wait);
       fflush(stdout);
     }
+    {
+      /* 4, 8, 16, 32, 64 ± 1 秒くらい */
+      int rest = (wait * 100 + rand() % 199 - 99) * 10;
+      int interval = 500;
 
-    /* タイムアウトリミット設定 */
-    /* 4, 8, 16, 32, 64 ± 1 秒くらい */
-    endat = ontime() + (wait - 1) * 100 + random() % 200;
-    timeout = 0;
-    while (1) {
-      int len = sizeof(inaddr_r);
-
-      if (ontime() > endat) {
-        timeout = 1;
-        break;
+      do {
+        if (!socklen(psockets->r, 0)) {
+          if (verbose) { /* インチキプログレス表示 */
+            printf(".");
+            fflush(stdout);
+          }
+          if (rest < interval) {
+            interval = rest;
+          }
+          msleep(interval); /* 少し待つ */
+          continue;
+        }
+        {
+          int len = sizeof(inaddr_r);
+          recvfrom(psockets->r, (char *)prmsg, sizeof(*prmsg), 0,
+                   (char *)&inaddr_r, &len);
+        }
+        if (!dhcp_isreply(prmsg, xid, &msgtype_r)) continue;
+        if (msgtype_s == DHCPDISCOVER) {
+          if (msgtype_r == DHCPOFFER) {
+            timeout = 0;
+            break; /* 受信完了 */
+          }
+        } else if (msgtype_s == DHCPREQUEST) {
+          if ((msgtype_r == DHCPACK) || (msgtype_r == DHCPNAK)) {
+            timeout = 0;
+            break; /* 受信完了 */
+          }
+        }
+      } while ((rest -= interval) > 0);
+      if (!timeout) {
+        if (verbose) {
+          printf(" done.\n");
+          dhcp_print(prmsg);
+        }
+        break; /* 受信完了でループ脱出 */
       }
-      if (!socklen(psockets->r, 0)) {
-        if (verbose) put_progress();
-        continue;
-      }
-      recvfrom(psockets->r, (char *)prmsg, sizeof(*prmsg), 0, (char *)&inaddr_r,
-               &len);
-      if (!dhcp_isreply(prmsg, xid, &msgtype_r)) continue;
-      if (msgtype_s == DHCPDISCOVER) {
-        if (msgtype_r == DHCPOFFER) break; /* 受信完了 */
-      } else if (msgtype_s == DHCPREQUEST) {
-        if ((msgtype_r == DHCPACK) || (msgtype_r == DHCPNAK))
-          break; /* 受信完了 */
-      }
+      if (verbose) printf(" タイムアウトです.\n");
+      wait <<= 1;
     }
-    if (!timeout) {
-      if (verbose) {
-        printf(" done.\n");
-        dhcp_print(prmsg);
-      }
-      break; /* 受信完了でループ脱出 */
-    }
-    if (verbose) printf(" タイムアウトです.");
-    wait <<= 1;
   }
 
   if (timeout) return ERR_TIMEOUT; /* タイムアウト */
@@ -589,7 +589,7 @@ static errno release_config(const int verbose, iface *piface,
   }
   sendto(psockets->s, (char *)&msg, sizeof(msg), 0, (char *)&inaddr_s,
          sizeof(inaddr_s));
-  delaysec(50); /* 少し待つ */
+  msleep(500); /* 少し待つ */
   iface_when_release(piface);
 
   return NOERROR;
@@ -649,7 +649,7 @@ static void iface_when_request(const unsigned long subnetmask,
     rt_top(&def);
     def->gateway = (long)g_pidhcpcinfo->gateway;
   }
-  /* delaysec(150);*/
+  /* msleep(1500);*/
 }
 
 /**
@@ -694,26 +694,7 @@ static void fill_dhcp_hw_addr(const iface *piface, dhcp_hw_addr *phwaddr) {
 }
 
 /**
- * @brief 1/100 秒単位でウェイトをかます
+ * @brief ミリ秒単位でウェイトをかます
  * @param tm ウェイトカウント ()
  */
-static void delaysec(const int tm) { usleep(tm * 10000); }
-
-/**
- * @brief インチキプログレス表示
- * @param
- */
-static void put_progress(void) {
-  static time_t oldtime = 0;
-  if (oldtime == 0) {
-    oldtime = time(NULL);
-  }
-  { /* 1 秒おきにドットを表示する */
-    time_t newtime = time(NULL);
-    if (difftime(newtime, oldtime) > 0) {
-      printf(".");
-      fflush(stdout);
-      oldtime = newtime;
-    }
-  }
-}
+static void msleep(const int tm) { usleep(tm * 1000); }
