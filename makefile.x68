@@ -1,7 +1,7 @@
 EXECUTABLE = idhcpc.x
 
 CC = gcc
-CFLAGS = -O2 -Wall -DNDEBUG
+CFLAGS = -O2 -Wall
 AS = HAS060
 LD = $(CC)
 LDLIBS = -lnetwork -ldos -liocs -lgcc
@@ -15,7 +15,7 @@ export GCC_NO__XCLIB = yes
 
 all: $(EXECUTABLE)
 
-OBJS = tsrarea.o keepchk.o __keepchk.o main.o idhcpc.o dhcp.o nwsub.o
+OBJS = tsrarea.o idhcpc.o dhcp.o nwsub.o main.o keepchk.o __keepchk.o
 
 $(EXECUTABLE): $(OBJS)
 	$(LD) $(LDLIBS) $(OBJS) -o $(EXECUTABLE)
@@ -24,6 +24,8 @@ main.o: idhcpc.h
 idhcpc.o: dhcp.h mynetwork.h nwsub.h
 dhcp.o: mynetwork.h nwsub.h
 nwsub.o: mynetwork.h
+tsrarea.o: tsrarea.c idhcpc.h
+	$(CC) $(CFLAGS) -c -o $@ $< -fall-text
 
 clean:
 	-rm $(EXECUTABLE) $(OBJS)

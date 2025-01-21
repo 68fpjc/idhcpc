@@ -1,6 +1,5 @@
 #include "idhcpc.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,29 +14,18 @@
 
 #define MAGIC_FORMAT "%s idhcpc https://github.com/68fpjc"
 
-/* idhcpc ワーク */
-/* tsrarea.s とサイズを合わせること */
-typedef struct {
-  time_t startat;                 /* DHCP クライアント起動日時 */
-  time_t dhcpackat;               /* DHCPACK 受信日時 */
-  unsigned long leasetime;        /* リース期間 (秒) */
-  unsigned long renewtime;        /* 更新開始タイマ (秒) */
-  unsigned long rebindtime;       /* 再結合開始タイマ (秒) */
-  unsigned long me;               /* 自分の IP アドレス */
-  unsigned long server;           /* DHCP サーバ IP アドレス */
-  unsigned long gateway;          /* デフォルトゲートウェイ */
-  unsigned long dns[256 / 4 - 1]; /* DNS サーバアドレス */
-  char ifname[8];                 /* インタフェース名 */
-  char magic[64];                 /* 常駐チェック用文字列 */
-} idhcpcinfo;
-
 typedef struct {
   int s; /* 送信用 UDP ソケット識別子 */
   int r; /* 受信用 UDP ソケット識別子 */
 } udpsockets;
 
 static int initialize(const char *);
+static struct _psp *getpdb(void);
+static struct _mep *getmep(void);
+static void *getkeepst(void);
 static int offsetof_idhcpcinfo(void);
+static int getmagicoffset(void);
+static int getkeepsize(void);
 static udpsockets create_sockets(void);
 static errno prepare_iface(const char *, iface **, dhcp_hw_addr *);
 static errno prepare_discover(iface *, udpsockets *, struct sockaddr_in *);
@@ -62,25 +50,29 @@ static void fill_dhcp_hw_addr(const iface *, dhcp_hw_addr *);
 static void delaysec(const int);
 static void put_progress(void);
 
-idhcpcinfo *g_pidhcpcinfo;
+idhcpcinfo *g_pidhcpcinfo; /* initialize() で初期化される */
+
+/**
+ * @brief 常駐サイズ計算用のダミー関数
+ */
+static void keeped(void) {}
 
 /**
  * @brief 常駐終了
+ * @param ifname インタフェース名
  */
-void keeppr_and_exit(void) {
-  extern const char g_keepst; /* 常駐部先頭アドレス */
-  extern const char g_keeped; /* 常駐部終端アドレス */
-
-  _dos_keeppr(&g_keeped - &g_keepst, 0);
-}
+void keeppr_and_exit(void) { _dos_keeppr(getkeepsize(), 0); }
 
 /**
  * @brief 常駐解除
+ * @param ifname インタフェース名
  * @return 0: 成功
+ * @remark 常駐していない場合は何もしない
  */
-int freepr(void) {
-  return _dos_mfree((void *)((char *)g_pidhcpcinfo - offsetof_idhcpcinfo() -
-                             sizeof(struct _psp)));
+int freepr(const char *ifname) {
+  return initialize(ifname)
+             ? _dos_mfree((void *)((int)g_pidhcpcinfo - sizeof(struct _psp)))
+             : -1;
 }
 
 /**
@@ -190,15 +182,11 @@ static int initialize(const char *ifname) {
   static int kept = 0;
 
   if (!initialized) {
-    extern idhcpcinfo g_idhcpcinfo;   /* idhcpc ワーク */
-    extern const char g_idhcpcinfoed; /* idhcpc ワーク終端 */
+    extern idhcpcinfo g_idhcpcinfo; /* idhcpc ワーク */
 
-    /* idhcpc ワークのサイズチェック */
-    assert(&g_idhcpcinfoed - (char *)&g_idhcpcinfo == sizeof(idhcpcinfo));
-
-    /* インタフェース名を非常駐部のワークへコピーしておく */
+    /* インタフェース名を現プロセスのワークへコピーしておく */
     strncpy(g_idhcpcinfo.ifname, ifname, sizeof(g_idhcpcinfo.ifname));
-    /* 常駐チェック用文字列を生成して非常駐部のワークへコピーしておく */
+    /* 常駐チェック用文字列を生成して現プロセスのワークへコピーしておく */
     snprintf(g_idhcpcinfo.magic, sizeof(g_idhcpcinfo.magic), MAGIC_FORMAT,
              g_idhcpcinfo.ifname);
     {
@@ -206,14 +194,12 @@ static int initialize(const char *ifname) {
 
       struct _mep *pmep;
 
-      kept = _keepchk(
-          (struct _mep *)((char *)_dos_getpdb() - sizeof(struct _mep)),
-          g_idhcpcinfo.magic - (char *)&g_idhcpcinfo + offsetof_idhcpcinfo(),
-          &pmep);
-      g_pidhcpcinfo = /* 常駐している場合は常駐部へのポインタ、そうでない場合は非常駐部へのポインタをセットする
+      kept = _keepchk(getmep(), getmagicoffset(), &pmep);
+
+      g_pidhcpcinfo = /* 常駐している場合は常駐プロセスへのポインタ、そうでない場合は現プロセスへのポインタをセットする
                        */
-          (idhcpcinfo *)((char *)pmep + sizeof(struct _mep) +
-                         sizeof(struct _psp) + offsetof_idhcpcinfo());
+          (idhcpcinfo *)((int)pmep + sizeof(struct _mep) + sizeof(struct _psp) +
+                         offsetof_idhcpcinfo());
     }
     initialized = 1;
   }
@@ -221,15 +207,62 @@ static int initialize(const char *ifname) {
 }
 
 /**
- * @brief PSP 末尾から idhcpc ワーク先頭までのオフセットを返す
- * @return バイト数
+ * @brief DOS _GETPDB の結果を返す
+ * @return DOS _GETPDB の結果
+ */
+static struct _psp *getpdb(void) {
+  static struct _psp *ppsp = NULL;
+  if (ppsp == NULL) {
+    ppsp = _dos_getpdb();
+  }
+  return ppsp;
+}
+
+/**
+ * @brief 現プロセスのメモリ管理ポインタを返す
+ * @return 現プロセスのメモリ管理ポインタ
+ */
+static struct _mep *getmep(void) {
+  static struct _mep *pmep = NULL;
+  if (pmep == NULL) {
+    pmep = (struct _mep *)((int)getpdb() - sizeof(struct _mep));
+  }
+  return pmep;
+}
+
+/**
+ * @brief 現在のプログラム先頭アドレスを返す
+ * @return 現在のプログラム先頭アドレス
+ */
+static void *getkeepst(void) {
+  return (void *)((int)getpdb() + sizeof(struct _psp));
+}
+
+/**
+ * @brief プログラム先頭から idhcpc ワーク先頭までのオフセットを返す
+ * @return オフセット
  */
 static int offsetof_idhcpcinfo(void) {
-  extern const char g_keepst;     /* 常駐部先頭アドレス */
   extern idhcpcinfo g_idhcpcinfo; /* idhcpc ワーク */
 
-  return (char *)&g_idhcpcinfo - &g_keepst;
+  return (int)&g_idhcpcinfo - (int)getkeepst();
 }
+
+/**
+ * @brief プログラム先頭から識別用文字列までのオフセットを返す
+ * @return プログラム先頭から識別用文字列までのオフセット
+ */
+static int getmagicoffset(void) {
+  extern idhcpcinfo g_idhcpcinfo; /* idhcpc ワーク */
+
+  return (int)&g_idhcpcinfo.magic - (int)&g_idhcpcinfo;
+}
+
+/**
+ * @brief 常駐サイズを返す
+ * @return 常駐サイズ
+ */
+static int getkeepsize(void) { return (int)&keeped - (int)getkeepst(); }
 
 /**
  * @brief udpsockets 構造体の初期値を返す

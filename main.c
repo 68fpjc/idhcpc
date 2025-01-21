@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
       put_error(ifname, err);
       return EXIT_FAILURE;
     } else {
-      freepr();
+      freepr(ifname);
       printf_with_iface(ifname, g_removemes);
     }
   } else if (lflag) {

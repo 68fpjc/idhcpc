@@ -32,19 +32,18 @@ INCLUDE_FLAGS = -I${XDEV68K_DIR}/include/libc -I${XDEV68K_DIR}/include/misc -I${
 
 # コンパイルフラグ
 COMMON_FLAGS = -m$(CPU) -Os $(INCLUDE_FLAGS)
-CFLAGS = $(COMMON_FLAGS) -Wno-builtin-declaration-mismatch -fcall-used-d2 -fcall-used-a2 -finput-charset=cp932 -fexec-charset=cp932 -fverbose-asm -DNDEBUG
-# CFLAGS = $(COMMON_FLAGS) -Wno-builtin-declaration-mismatch -fcall-used-d2 -fcall-used-a2 -finput-charset=cp932 -fexec-charset=cp932 -fverbose-asm
+CFLAGS = $(COMMON_FLAGS) -Wno-builtin-declaration-mismatch -fcall-used-d2 -fcall-used-a2 -finput-charset=cp932 -fexec-charset=cp932 -fverbose-asm
 CXXFLAGS = $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
 
 # *.c ソースファイル
-C_SRCS = main.c idhcpc.c dhcp.c nwsub.c
+# 先頭に tsrarea.c 、次に idhcpc.c
+C_SRCS = tsrarea.c idhcpc.c dhcp.c nwsub.c main.c
 
 # *.cpp ソースファイル
 CPP_SRCS =
 
 # *.s ソースファイル
-# tsrarea.s を先頭に
-ASM_SRCS = tsrarea.s keepchk.s __keepchk.s
+ASM_SRCS = keepchk.s __keepchk.s
 
 # リンク対象のライブラリファイル
 LIBS =\
@@ -59,10 +58,9 @@ LIBS =\
 INTERMEDIATE_DIR = _build/m$(CPU)
 
 # オブジェクトファイル
-# ASM_SRCS → C_SRCS の順に
-OBJS =	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.s,%.o,$(ASM_SRCS))) \
-	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.o,$(C_SRCS))) \
-	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.cpp,%.o,$(CPP_SRCS)))
+OBJS =	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.o,$(C_SRCS))) \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.cpp,%.o,$(CPP_SRCS))) \
+	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.s,%.o,$(ASM_SRCS)))
 
 # 依存関係ファイル
 DEPS =	$(addprefix $(INTERMEDIATE_DIR)/,$(patsubst %.c,%.d,$(C_SRCS))) \
