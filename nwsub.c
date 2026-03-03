@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: 0BSD */
+
 #include "nwsub.h"
 
 #include <string.h>

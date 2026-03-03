@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: 0BSD */
+
 #include "idhcpc.h"
 
 #ifndef __MARIKO_CC__

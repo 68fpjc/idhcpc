@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: 0BSD */
+
 #include "dhcp.h"
 
 #include <string.h>

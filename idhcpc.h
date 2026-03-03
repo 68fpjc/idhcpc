@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: 0BSD */
+
 #ifndef IDHCPC_H
 #define IDHCPC_H
 

@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: 0BSD */
+
 #ifndef NWSUB_H
 #define NWSUB_H
 

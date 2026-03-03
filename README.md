@@ -153,6 +153,10 @@ xdev68k の場合と同様、LIBC と TCPPACKB が必要です。事前にヘッ
 
 idhcpc のビルド済みバイナリは xdev68k でビルドしたものです。
 
+## ライセンス
+
+ソースコードの `process.h` を除き、 0BSD ライセンスです。詳細は [LICENSE](LICENSE) を参照してください。
+
 ### 参考文献
 
 -   Network Working Group Request For Comments: 2131 (rfc2131)
